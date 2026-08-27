@@ -4,6 +4,7 @@ import type { CompanyRow, ExecutiveContactRow, JobPostingRow } from "../db/schem
 import { companyLinkedInUrl, executiveLinkedInUrl, natureOfBusinessLabel } from "@shared/company-profile";
 import {
   emailVerificationLabel,
+  executiveRolePriority,
   isUsableExecutiveEmailStatus,
   NO_VERIFIED_EXECUTIVE_CONTACT,
 } from "@shared/executive-contact";
@@ -74,6 +75,16 @@ function exportEmail(email: string | null, status: ExecutiveContactRow["primaryE
 
 function exportEmailStatus(email: string | null, status: ExecutiveContactRow["primaryEmailStatus"]): string {
   return email && isUsableExecutiveEmailStatus(status) ? emailVerificationLabel(status) : "Unavailable";
+}
+
+function executiveRoleLabel(title: string): string {
+  const priority = executiveRolePriority(title);
+  if (priority === 10) return "Founder";
+  if (priority === 20) return "Owner";
+  if (priority === 30) return "CEO";
+  if (priority === 40) return "CFO";
+  if (priority === 50) return "COO";
+  return title;
 }
 
 function addHyperlink(row: ExcelJS.Row, key: string, url: string | null | undefined): void {
@@ -210,6 +221,7 @@ export function buildWorkbook(opts: {
     { header: "Region", key: "region", width: 18 },
     { header: "Country", key: "country", width: 18 },
     { header: "Company LinkedIn", key: "companyLinkedin", width: 42 },
+    { header: "Executive Role", key: "role", width: 18 },
     { header: "Executive Name", key: "name", width: 24 },
     { header: "Title", key: "title", width: 24 },
     { header: "LinkedIn", key: "linkedin", width: 42 },
@@ -251,6 +263,7 @@ export function buildWorkbook(opts: {
         region: company.region ?? "",
         country: company.country ?? "",
         companyLinkedin: companyLinkedInUrl(company),
+        role: matchedContact ? executiveRoleLabel(matchedContact.title) : requestedRole ?? "",
         name: matchedContact?.name ?? "",
         title: matchedContact?.title ?? requestedRole ?? "",
         linkedin: matchedContact?.linkedinUrl ?? lookupUrl,

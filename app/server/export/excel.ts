@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import { POSTING_SOURCE_LABELS, ROLE_CATEGORY_LABELS, type RunCreateInput } from "@shared/types";
 import type { CompanyRow, ExecutiveContactRow, JobPostingRow } from "../db/schema";
-import { natureOfBusinessLabel } from "@shared/company-profile";
+import { executiveLinkedInUrl, natureOfBusinessLabel } from "@shared/company-profile";
 import {
   emailVerificationLabel,
   isUsableExecutiveEmailStatus,
@@ -209,6 +209,7 @@ export function buildWorkbook(opts: {
     { header: "Company Name", key: "companyName", width: 30 },
     { header: "Region", key: "region", width: 18 },
     { header: "Country", key: "country", width: 18 },
+    { header: "Company LinkedIn", key: "companyLinkedin", width: 42 },
     { header: "Executive Name", key: "name", width: 24 },
     { header: "Title", key: "title", width: 24 },
     { header: "LinkedIn", key: "linkedin", width: 42 },
@@ -222,31 +223,48 @@ export function buildWorkbook(opts: {
     { header: "Verification Status", key: "verificationStatus", width: 22 },
     { header: "Confidence Score", key: "confidence", width: 18 },
     { header: "Verification Date", key: "verificationDate", width: 18 },
+    { header: "Lookup Status", key: "lookupStatus", width: 34 },
   ];
-  const companiesById = new Map(opts.companies.map((company) => [company.id, company]));
+  const contactsByCompany = new Map<string, ExecutiveContactRow[]>();
   for (const contact of opts.executiveContacts ?? []) {
-    const company = companiesById.get(contact.companyId);
-    if (!company) continue;
-    const row = executiveSheet.addRow({
-      companyName: company.name,
-      region: company.region ?? "",
-      country: company.country ?? "",
-      name: contact.name,
-      title: contact.title,
-      linkedin: contact.linkedinUrl ?? "",
-      primaryEmail: exportEmail(contact.primaryEmail, contact.primaryEmailStatus),
-      primaryEmailStatus: exportEmailStatus(contact.primaryEmail, contact.primaryEmailStatus),
-      alternateEmail: exportEmail(contact.alternateEmail, contact.alternateEmailStatus),
-      alternateEmailStatus: exportEmailStatus(contact.alternateEmail, contact.alternateEmailStatus),
-      primaryPhone: contact.primaryPhone ?? "",
-      alternatePhone: contact.alternatePhone ?? "",
-      sourceUrl: contact.sourceUrl ?? "",
-      verificationStatus: emailVerificationLabel(contact.verificationStatus),
-      confidence: contact.confidenceScore,
-      verificationDate: contact.verifiedAt?.toISOString().slice(0, 10) ?? "",
-    });
-    addHyperlink(row, "linkedin", contact.linkedinUrl);
-    addHyperlink(row, "sourceUrl", contact.sourceUrl);
+    const contacts = contactsByCompany.get(contact.companyId) ?? [];
+    contacts.push(contact);
+    contactsByCompany.set(contact.companyId, contacts);
+  }
+  for (const company of opts.companies) {
+    const contacts = (contactsByCompany.get(company.id) ?? []).sort((a, b) => a.rank - b.rank).slice(0, 3);
+    const rows = contacts.length > 0 ? contacts : [null];
+    for (const contact of rows) {
+      const lookupUrl = executiveLinkedInUrl({
+        name: company.name,
+        executiveName: contact?.name ?? company.executiveName,
+        executiveTitle: contact?.title ?? company.executiveTitle,
+        executiveLinkedinUrl: contact?.linkedinUrl ?? company.executiveLinkedinUrl,
+      });
+      const row = executiveSheet.addRow({
+        companyName: company.name,
+        region: company.region ?? "",
+        country: company.country ?? "",
+        companyLinkedin: company.linkedinUrl ?? "",
+        name: contact?.name ?? "",
+        title: contact?.title ?? "",
+        linkedin: contact?.linkedinUrl ?? lookupUrl,
+        primaryEmail: contact ? exportEmail(contact.primaryEmail, contact.primaryEmailStatus) : "",
+        primaryEmailStatus: contact ? exportEmailStatus(contact.primaryEmail, contact.primaryEmailStatus) : "Unavailable",
+        alternateEmail: contact ? exportEmail(contact.alternateEmail, contact.alternateEmailStatus) : "",
+        alternateEmailStatus: contact ? exportEmailStatus(contact.alternateEmail, contact.alternateEmailStatus) : "Unavailable",
+        primaryPhone: contact?.primaryPhone ?? "",
+        alternatePhone: contact?.alternatePhone ?? "",
+        sourceUrl: contact?.sourceUrl ?? "",
+        verificationStatus: contact ? emailVerificationLabel(contact.verificationStatus) : "Unavailable",
+        confidence: contact?.confidenceScore ?? "",
+        verificationDate: contact?.verifiedAt?.toISOString().slice(0, 10) ?? "",
+        lookupStatus: contact ? "Executive contact found" : "No verified executive contact found",
+      });
+      addHyperlink(row, "companyLinkedin", company.linkedinUrl);
+      addHyperlink(row, "linkedin", contact?.linkedinUrl ?? lookupUrl);
+      addHyperlink(row, "sourceUrl", contact?.sourceUrl);
+    }
   }
   styleHeader(executiveSheet);
   zebra(executiveSheet);

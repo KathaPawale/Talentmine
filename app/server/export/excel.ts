@@ -233,37 +233,42 @@ export function buildWorkbook(opts: {
   }
   for (const company of opts.companies) {
     const contacts = (contactsByCompany.get(company.id) ?? []).sort((a, b) => a.rank - b.rank).slice(0, 3);
-    const rows = contacts.length > 0 ? contacts : [null];
+    const roles = ["CEO", "CFO", "COO", "Founder"];
+    const rows = contacts.length > 0
+      ? contacts
+      : roles.map((role) => ({ role }));
     for (const contact of rows) {
+      const matchedContact = "id" in contact ? contact : null;
+      const requestedRole = "role" in contact ? contact.role : null;
       const lookupUrl = executiveLinkedInUrl({
         name: company.name,
-        executiveName: contact?.name ?? company.executiveName,
-        executiveTitle: contact?.title ?? company.executiveTitle,
-        executiveLinkedinUrl: contact?.linkedinUrl ?? company.executiveLinkedinUrl,
+        executiveName: matchedContact?.name ?? company.executiveName,
+        executiveTitle: matchedContact?.title ?? requestedRole ?? company.executiveTitle,
+        executiveLinkedinUrl: matchedContact?.linkedinUrl ?? company.executiveLinkedinUrl,
       });
       const row = executiveSheet.addRow({
         companyName: company.name,
         region: company.region ?? "",
         country: company.country ?? "",
         companyLinkedin: companyLinkedInUrl(company),
-        name: contact?.name ?? "",
-        title: contact?.title ?? "",
-        linkedin: contact?.linkedinUrl ?? lookupUrl,
-        primaryEmail: contact ? exportEmail(contact.primaryEmail, contact.primaryEmailStatus) : "",
-        primaryEmailStatus: contact ? exportEmailStatus(contact.primaryEmail, contact.primaryEmailStatus) : "Unavailable",
-        alternateEmail: contact ? exportEmail(contact.alternateEmail, contact.alternateEmailStatus) : "",
-        alternateEmailStatus: contact ? exportEmailStatus(contact.alternateEmail, contact.alternateEmailStatus) : "Unavailable",
-        primaryPhone: contact?.primaryPhone ?? "",
-        alternatePhone: contact?.alternatePhone ?? "",
-        sourceUrl: contact?.sourceUrl ?? "",
-        verificationStatus: contact ? emailVerificationLabel(contact.verificationStatus) : "Unavailable",
-        confidence: contact?.confidenceScore ?? "",
-        verificationDate: contact?.verifiedAt?.toISOString().slice(0, 10) ?? "",
-        lookupStatus: contact ? "Executive contact found" : "No verified executive contact found",
+        name: matchedContact?.name ?? "",
+        title: matchedContact?.title ?? requestedRole ?? "",
+        linkedin: matchedContact?.linkedinUrl ?? lookupUrl,
+        primaryEmail: matchedContact ? exportEmail(matchedContact.primaryEmail, matchedContact.primaryEmailStatus) : "",
+        primaryEmailStatus: matchedContact ? exportEmailStatus(matchedContact.primaryEmail, matchedContact.primaryEmailStatus) : "Unavailable",
+        alternateEmail: matchedContact ? exportEmail(matchedContact.alternateEmail, matchedContact.alternateEmailStatus) : "",
+        alternateEmailStatus: matchedContact ? exportEmailStatus(matchedContact.alternateEmail, matchedContact.alternateEmailStatus) : "Unavailable",
+        primaryPhone: matchedContact?.primaryPhone ?? "",
+        alternatePhone: matchedContact?.alternatePhone ?? "",
+        sourceUrl: matchedContact?.sourceUrl ?? "",
+        verificationStatus: matchedContact ? emailVerificationLabel(matchedContact.verificationStatus) : "Unavailable",
+        confidence: matchedContact?.confidenceScore ?? "",
+        verificationDate: matchedContact?.verifiedAt?.toISOString().slice(0, 10) ?? "",
+        lookupStatus: matchedContact ? "Executive contact found" : `Search for ${requestedRole}`,
       });
       addHyperlink(row, "companyLinkedin", companyLinkedInUrl(company));
-      addHyperlink(row, "linkedin", contact?.linkedinUrl ?? lookupUrl);
-      addHyperlink(row, "sourceUrl", contact?.sourceUrl);
+      addHyperlink(row, "linkedin", matchedContact?.linkedinUrl ?? lookupUrl);
+      addHyperlink(row, "sourceUrl", matchedContact?.sourceUrl);
     }
   }
   styleHeader(executiveSheet);

@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+:root {
+  /* surfaces — deep space navy */
+  --background: #060a14;
+  --foreground: #eef2ff;
+  --card: #0b1020;
+  --card-foreground: #eef2ff;
+  --popover: #0d1226;
+  --popover-foreground: #eef2ff;
+  --border: oklch(0.85 0.05 250 / 12%);
+  --input: oklch(0.85 0.05 250 / 16%);
+
+  /* brand — cyan with violet accents */
+  --primary: #22d3ee;
+  --primary-foreground: #042a30;
+  --secondary: #171c30;
+  --secondary-foreground: #e2e8f0;
+  --muted: #131830;
+  --muted-foreground: #94a3c0;
+  --accent: #141b33;
+  --accent-foreground: #cffafe;
+  --destructive: #fb7185;
+  --violet: #a78bfa;
+  --ring: oklch(0.78 0.13 210 / 40%);
+  --radius: 0.75rem;
+
+  /* status system — the ONLY place status colors are defined */
+  --status-success: #34d399;
+  --status-warning: #fbbf24;
+  --status-danger: #fb7185;
+  --status-info: #60a5fa;
+  --status-neutral: #8b93a8;
+
+  /* charts */
+  --chart-1: #22d3ee;
+  --chart-2: #a78bfa;
+  --chart-3: #34d399;
+  --chart-4: #fbbf24;
+  --chart-5: #f472b6;
+  --chart-6: #60a5fa;
+  --chart-7: #fb923c;
+  --chart-8: #4ade80;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-violet: var(--violet);
+  --color-ring: var(--ring);
+  --color-success: var(--status-success);
+  --color-warning: var(--status-warning);
+  --color-danger: var(--status-danger);
+  --color-info: var(--status-info);
+  --color-neutral: var(--status-neutral);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 0.25rem);
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* subtle grid pattern on main content areas */
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, oklch(0.85 0.06 250 / 3%) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(0.85 0.06 250 / 3%) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* glassmorphism panel — shell chrome, hero, drawers only (data tables stay plain) */
+@utility glass-panel {
+  background: oklch(0.2 0.04 265 / 55%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid oklch(0.85 0.05 250 / 14%);
+}
+
+/* soft cyan/violet ambient glow for hero areas */
+@utility glow-hero {
+  background:
+    radial-gradient(ellipse 60% 50% at 20% 0%, oklch(0.7 0.13 210 / 12%), transparent),
+    radial-gradient(ellipse 50% 40% at 80% 10%, oklch(0.65 0.15 295 / 10%), transparent);
+}
+
+/* thin scrollbars for log panes */
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted) transparent;
+}

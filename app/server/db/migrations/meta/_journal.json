@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1785911734512,
+      "tag": "0000_hot_hydra",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1785923281124,
+      "tag": "0001_fluffy_alice",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785929664110,
+      "tag": "0002_concerned_blue_blade",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1786536434342,
+      "tag": "0003_company-profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1787721600000,
+      "tag": "0004_executive_contacts",
+      "breakpoints": true
+    }
+  ]
+}

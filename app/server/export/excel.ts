@@ -76,68 +76,10 @@ function exportEmailStatus(email: string | null, status: ExecutiveContactRow["pr
   return email && isUsableExecutiveEmailStatus(status) ? emailVerificationLabel(status) : "Unavailable";
 }
 
-function executiveColumns(): Array<Partial<ExcelJS.Column>> {
-  const columns: Array<Partial<ExcelJS.Column>> = [];
-  for (let index = 1; index <= 3; index++) {
-    const prefix = `executive${index}`;
-    columns.push(
-      { header: `Executive ${index} Name`, key: `${prefix}Name`, width: 24 },
-      { header: `Executive ${index} Title`, key: `${prefix}Title`, width: 24 },
-      { header: `Executive ${index} LinkedIn`, key: `${prefix}Linkedin`, width: 42 },
-      { header: `Executive ${index} Primary Email`, key: `${prefix}PrimaryEmail`, width: 28 },
-      { header: `Executive ${index} Primary Email Status`, key: `${prefix}PrimaryEmailStatus`, width: 22 },
-      { header: `Executive ${index} Alternate Email`, key: `${prefix}AlternateEmail`, width: 28 },
-      { header: `Executive ${index} Alternate Email Status`, key: `${prefix}AlternateEmailStatus`, width: 22 },
-      { header: `Executive ${index} Primary Phone`, key: `${prefix}PrimaryPhone`, width: 18 },
-      { header: `Executive ${index} Alternate Phone`, key: `${prefix}AlternatePhone`, width: 18 },
-      { header: `Executive ${index} Source URL`, key: `${prefix}SourceUrl`, width: 42 },
-      { header: `Executive ${index} Verification Status`, key: `${prefix}VerificationStatus`, width: 22 },
-      { header: `Executive ${index} Confidence Score`, key: `${prefix}Confidence`, width: 18 },
-      { header: `Executive ${index} Verification Date`, key: `${prefix}VerificationDate`, width: 18 },
-    );
-  }
-  return columns;
-}
-
-function executiveValues(contacts: ExecutiveContactRow[]): Record<string, string | number> {
-  const values: Record<string, string | number> = {};
-  for (let index = 0; index < 3; index++) {
-    const contact = contacts[index];
-    const prefix = `executive${index + 1}`;
-    values[`${prefix}Name`] = contact?.name ?? (index === 0 ? NO_VERIFIED_EXECUTIVE_CONTACT : "");
-    values[`${prefix}Title`] = contact?.title ?? "";
-    values[`${prefix}Linkedin`] = contact?.linkedinUrl ?? "";
-    values[`${prefix}PrimaryEmail`] = contact ? exportEmail(contact.primaryEmail, contact.primaryEmailStatus) : "";
-    values[`${prefix}PrimaryEmailStatus`] = contact
-      ? exportEmailStatus(contact.primaryEmail, contact.primaryEmailStatus)
-      : "Unavailable";
-    values[`${prefix}AlternateEmail`] = contact ? exportEmail(contact.alternateEmail, contact.alternateEmailStatus) : "";
-    values[`${prefix}AlternateEmailStatus`] = contact
-      ? exportEmailStatus(contact.alternateEmail, contact.alternateEmailStatus)
-      : "Unavailable";
-    values[`${prefix}PrimaryPhone`] = contact?.primaryPhone ?? "";
-    values[`${prefix}AlternatePhone`] = contact?.alternatePhone ?? "";
-    values[`${prefix}SourceUrl`] = contact?.sourceUrl ?? "";
-    values[`${prefix}VerificationStatus`] = contact
-      ? emailVerificationLabel(contact.verificationStatus)
-      : "Unavailable";
-    values[`${prefix}Confidence`] = contact?.confidenceScore ?? "";
-    values[`${prefix}VerificationDate`] = contact?.verifiedAt?.toISOString().slice(0, 10) ?? "";
-  }
-  return values;
-}
-
 function addHyperlink(row: ExcelJS.Row, key: string, url: string | null | undefined): void {
   if (!url) return;
   row.getCell(key).value = { text: url, hyperlink: url };
   row.getCell(key).font = { color: { argb: "FF0E7490" }, underline: true };
-}
-
-function addExecutiveHyperlinks(row: ExcelJS.Row, contacts: ExecutiveContactRow[]): void {
-  contacts.slice(0, 3).forEach((contact, index) => {
-    addHyperlink(row, `executive${index + 1}Linkedin`, contact.linkedinUrl);
-    addHyperlink(row, `executive${index + 1}SourceUrl`, contact.sourceUrl);
-  });
 }
 
 export function buildWorkbook(opts: {
@@ -170,8 +112,6 @@ export function buildWorkbook(opts: {
     { header: "Company Region", key: "companyRegion", width: 18 },
     { header: "Company Country", key: "companyCountry", width: 18 },
     { header: "Employer Classification", key: "classification", width: 20 },
-    { header: "Executive Contact Result", key: "contactResult", width: 36 },
-    ...executiveColumns(),
     { header: "Job City", key: "city", width: 16 },
     { header: "Job Region", key: "region", width: 16 },
     { header: "Job Country", key: "country", width: 16 },
@@ -184,7 +124,6 @@ export function buildWorkbook(opts: {
     { header: "Description", key: "snippet", width: 60 },
   ];
   for (const posting of opts.postings) {
-    const contacts = posting.executiveContacts.slice(0, 3);
     const row = ps.addRow({
       title: posting.title,
       jobUrl: posting.applyUrl ?? posting.sourceUrl ?? "",
@@ -208,8 +147,6 @@ export function buildWorkbook(opts: {
       companyRegion: posting.companyRegion ?? "",
       companyCountry: posting.companyCountry ?? "",
       classification: posting.companyClassification.replace("_", " "),
-      contactResult: contacts.length > 0 ? `${contacts.length} senior decision-maker${contacts.length === 1 ? "" : "s"}` : NO_VERIFIED_EXECUTIVE_CONTACT,
-      ...executiveValues(contacts),
       city: posting.city ?? "",
       region: posting.region ?? "",
       country: posting.country ?? "",
@@ -225,18 +162,10 @@ export function buildWorkbook(opts: {
     addHyperlink(row, "jobSourceUrl", posting.sourceUrl);
     addHyperlink(row, "website", posting.companyWebsite ?? (posting.companyDomain ? `https://${posting.companyDomain}` : null));
     addHyperlink(row, "companyLinkedin", posting.companyLinkedinUrl);
-    addExecutiveHyperlinks(row, contacts);
   }
   styleHeader(ps);
   zebra(ps);
   ps.autoFilter = { from: "A1", to: { row: 1, column: ps.columnCount } };
-
-  const contactsByCompany = new Map<string, ExecutiveContactRow[]>();
-  for (const contact of opts.executiveContacts ?? []) {
-    const contacts = contactsByCompany.get(contact.companyId) ?? [];
-    if (contacts.length < 3) contacts.push(contact);
-    contactsByCompany.set(contact.companyId, contacts);
-  }
 
   const cs = wb.addWorksheet("Companies");
   cs.columns = [
@@ -251,12 +180,9 @@ export function buildWorkbook(opts: {
     { header: "Country", key: "country", width: 18 },
     { header: "Employer Classification", key: "classification", width: 20 },
     { header: "Employer Confidence", key: "employerConfidence", width: 18 },
-    { header: "Executive Contact Result", key: "contactResult", width: 36 },
-    ...executiveColumns(),
     { header: "Open Postings", key: "count", width: 14 },
   ];
   for (const company of opts.companies) {
-    const contacts = (contactsByCompany.get(company.id) ?? []).sort((a, b) => a.rank - b.rank).slice(0, 3);
     const row = cs.addRow({
       name: company.name,
       website: company.website ?? (company.domain ? `https://${company.domain}` : ""),
@@ -269,13 +195,10 @@ export function buildWorkbook(opts: {
       country: company.country ?? "",
       classification: company.classification.replace("_", " "),
       employerConfidence: company.classificationConfidence || "",
-      contactResult: contacts.length > 0 ? `${contacts.length} senior decision-maker${contacts.length === 1 ? "" : "s"}` : NO_VERIFIED_EXECUTIVE_CONTACT,
-      ...executiveValues(contacts),
       count: company.postingsCount,
     });
     addHyperlink(row, "website", company.website ?? (company.domain ? `https://${company.domain}` : null));
     addHyperlink(row, "companyLinkedin", company.linkedinUrl);
-    addExecutiveHyperlinks(row, contacts);
   }
   styleHeader(cs);
   zebra(cs);

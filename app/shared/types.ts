@@ -217,8 +217,6 @@ export const ADZUNA_COUNTRIES: Record<string, string> = {
   belgium: "be",
   brazil: "br",
   canada: "ca",
-  uae: "ae",
-  "united arab emirates": "ae",
   switzerland: "ch",
   germany: "de",
   spain: "es",

@@ -86,6 +86,11 @@ function LinkLine({ label, url }: { label: string; url: string | null }) {
   );
 }
 
+function linkedinSearchUrl(contact: ExecutiveContactRow): string {
+  const keywords = [contact.name, contact.title].filter(Boolean).join(" ");
+  return `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(keywords)}`;
+}
+
 export function ExecutiveContacts({ contacts }: { contacts: ExecutiveContactRow[] }) {
   if (contacts.length === 0) {
     return (
@@ -119,7 +124,7 @@ export function ExecutiveContacts({ contacts }: { contacts: ExecutiveContactRow[
               <td className="px-3 py-3"><EmailLine label="" email={contact.alternateEmail} status={contact.alternateEmailStatus} /></td>
               <td className="px-3 py-3"><PhoneLine label="" phone={contact.primaryPhone} /></td>
               <td className="px-3 py-3"><PhoneLine label="" phone={contact.alternatePhone} /></td>
-              <td className="px-3 py-3"><LinkLine label="" url={contact.linkedinUrl} /></td>
+              <td className="px-3 py-3"><LinkLine label="" url={contact.linkedinUrl ?? linkedinSearchUrl(contact)} /></td>
               <td className="px-3 py-3">
                 <div className="flex flex-col items-start gap-1">
                   <VerificationBadge status={contact.verificationStatus} />

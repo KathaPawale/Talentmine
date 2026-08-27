@@ -245,7 +245,7 @@ export function buildWorkbook(opts: {
         companyName: company.name,
         region: company.region ?? "",
         country: company.country ?? "",
-        companyLinkedin: company.linkedinUrl ?? "",
+        companyLinkedin: companyLinkedInUrl(company),
         name: contact?.name ?? "",
         title: contact?.title ?? "",
         linkedin: contact?.linkedinUrl ?? lookupUrl,
@@ -261,7 +261,7 @@ export function buildWorkbook(opts: {
         verificationDate: contact?.verifiedAt?.toISOString().slice(0, 10) ?? "",
         lookupStatus: contact ? "Executive contact found" : "No verified executive contact found",
       });
-      addHyperlink(row, "companyLinkedin", company.linkedinUrl);
+      addHyperlink(row, "companyLinkedin", companyLinkedInUrl(company));
       addHyperlink(row, "linkedin", contact?.linkedinUrl ?? lookupUrl);
       addHyperlink(row, "sourceUrl", contact?.sourceUrl);
     }

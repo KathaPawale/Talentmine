@@ -25,7 +25,7 @@ interface AdzunaJob {
 
 /** Currency by Adzuna country code — the API reports salaries in local currency. */
 const CURRENCY: Record<string, string> = {
-  au: "AUD", at: "EUR", be: "EUR", br: "BRL", ca: "CAD", ch: "CHF", de: "EUR",
+  ae: "AED", au: "AUD", at: "EUR", be: "EUR", br: "BRL", ca: "CAD", ch: "CHF", de: "EUR",
   es: "EUR", fr: "EUR", gb: "GBP", in: "INR", it: "EUR", mx: "MXN", nl: "EUR",
   nz: "NZD", pl: "PLN", sg: "SGD", us: "USD", za: "ZAR",
 };

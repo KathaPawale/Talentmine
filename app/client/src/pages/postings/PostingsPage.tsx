@@ -9,6 +9,7 @@ import {
   type PostingSource,
   type RoleCategory,
 } from "@shared/types";
+import { companyLinkedInUrl } from "@shared/company-profile";
 import { useTRPC } from "@/lib/trpc";
 import { cn, formatNumber, relativeTime } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -325,14 +326,14 @@ function PostingDrawer({ row, onClose }: { row: Row; onClose: () => void }) {
           <div className="flex justify-between gap-3">
             <dt className="shrink-0 text-muted-foreground">Company LinkedIn</dt>
             <dd className="text-right font-medium">
-              {row.companyLinkedinUrl ? (
+              {row.companyName ? (
                 <a
-                  href={row.companyLinkedinUrl}
+                  href={companyLinkedInUrl({ name: row.companyName, linkedinUrl: row.companyLinkedinUrl })}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 text-primary hover:underline"
                 >
-                  <ExternalLink className="h-3.5 w-3.5" /> View company
+                  <ExternalLink className="h-3.5 w-3.5" /> {row.companyLinkedinUrl ? "View company" : "Find company"}
                 </a>
               ) : (
                 <span className="text-muted-foreground">Unavailable</span>

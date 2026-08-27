@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { FileSpreadsheet, FileText, Download, ExternalLink } from "lucide-react";
 import { ROLE_CATEGORIES, ROLE_CATEGORY_LABELS, type RoleCategory } from "@shared/types";
+import { companyLinkedInUrl } from "@shared/company-profile";
 import { useTRPC, useTRPCClient } from "@/lib/trpc";
 import { cn, formatNumber } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -210,14 +211,14 @@ export function ExportPage() {
                       Company LinkedIn
                     </div>
                     <div className="mt-1 text-sm font-semibold text-foreground">
-                      {row.companyLinkedinUrl ? (
+                      {row.companyName ? (
                         <a
-                          href={row.companyLinkedinUrl}
+                          href={companyLinkedInUrl({ name: row.companyName, linkedinUrl: row.companyLinkedinUrl })}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1 text-primary hover:underline"
                         >
-                          <ExternalLink className="h-3.5 w-3.5" /> View company page
+                          <ExternalLink className="h-3.5 w-3.5" /> {row.companyLinkedinUrl ? "View company page" : "Find company"}
                         </a>
                       ) : (
                         <span className="text-muted-foreground">Unavailable</span>

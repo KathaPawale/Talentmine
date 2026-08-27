@@ -5,6 +5,7 @@ import { Building2, ExternalLink, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CLASSIFICATIONS, ROLE_CATEGORY_LABELS, type Classification } from "@shared/types";
 import {
+  companyLinkedInUrl,
   natureOfBusinessLabel,
 } from "@shared/company-profile";
 import { NO_VERIFIED_EXECUTIVE_CONTACT } from "@shared/executive-contact";
@@ -265,9 +266,9 @@ function CompanyDrawer({ id, onClose }: { id: string; onClose: () => void }) {
               <div className="flex justify-between gap-3">
                 <dt className="shrink-0 text-muted-foreground">Company LinkedIn</dt>
                 <dd>
-                  {c.linkedinUrl ? (
-                    <a href={c.linkedinUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-                      <ExternalLink className="h-3.5 w-3.5" /> View company
+                  {c.name ? (
+                    <a href={companyLinkedInUrl(c)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+                      <ExternalLink className="h-3.5 w-3.5" /> {c.linkedinUrl ? "View company" : "Find company"}
                     </a>
                   ) : (
                     <span className="text-muted-foreground">Unavailable</span>

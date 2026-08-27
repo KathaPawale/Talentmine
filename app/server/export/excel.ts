@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import { POSTING_SOURCE_LABELS, ROLE_CATEGORY_LABELS, type RunCreateInput } from "@shared/types";
 import type { CompanyRow, ExecutiveContactRow, JobPostingRow } from "../db/schema";
-import { executiveLinkedInUrl, natureOfBusinessLabel } from "@shared/company-profile";
+import { companyLinkedInUrl, executiveLinkedInUrl, natureOfBusinessLabel } from "@shared/company-profile";
 import {
   emailVerificationLabel,
   isUsableExecutiveEmailStatus,
@@ -133,7 +133,7 @@ export function buildWorkbook(opts: {
       role: ROLE_CATEGORY_LABELS[posting.roleCategory],
       company: posting.companyName,
       website: posting.companyWebsite ?? (posting.companyDomain ? `https://${posting.companyDomain}` : ""),
-      companyLinkedin: posting.companyLinkedinUrl ?? "",
+      companyLinkedin: companyLinkedInUrl({ name: posting.companyName, linkedinUrl: posting.companyLinkedinUrl }),
       industry: posting.companyIndustry ?? "",
       nature: exportNatureOfBusiness({
         name: posting.companyName,
@@ -161,7 +161,7 @@ export function buildWorkbook(opts: {
     addHyperlink(row, "jobUrl", posting.applyUrl ?? posting.sourceUrl);
     addHyperlink(row, "jobSourceUrl", posting.sourceUrl);
     addHyperlink(row, "website", posting.companyWebsite ?? (posting.companyDomain ? `https://${posting.companyDomain}` : null));
-    addHyperlink(row, "companyLinkedin", posting.companyLinkedinUrl);
+    addHyperlink(row, "companyLinkedin", companyLinkedInUrl({ name: posting.companyName, linkedinUrl: posting.companyLinkedinUrl }));
   }
   styleHeader(ps);
   zebra(ps);
@@ -355,7 +355,7 @@ export function buildCsv(postings: ExportPosting[]): string {
       ROLE_CATEGORY_LABELS[posting.roleCategory],
       posting.companyName,
       posting.companyWebsite ?? (posting.companyDomain ? `https://${posting.companyDomain}` : ""),
-      posting.companyLinkedinUrl ?? "",
+      companyLinkedInUrl({ name: posting.companyName, linkedinUrl: posting.companyLinkedinUrl }),
       posting.companyIndustry ?? "",
       exportNatureOfBusiness({
         name: posting.companyName,

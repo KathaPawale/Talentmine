@@ -325,6 +325,12 @@ export function normalizeLinkedInCompanyUrl(value: string | null | undefined): s
   }
 }
 
+export function companyLinkedInUrl(company: Pick<CompanyProfileFields, "name"> & { linkedinUrl?: string | null }): string {
+  const direct = normalizeLinkedInCompanyUrl(company.linkedinUrl);
+  if (direct) return direct;
+  return `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(company.name)}`;
+}
+
 /**
  * Prefer a verified public profile. When one is not available, return a
  * transparent LinkedIn people-search rather than guessing a person's URL.

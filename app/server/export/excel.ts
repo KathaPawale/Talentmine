@@ -107,32 +107,33 @@ export function buildWorkbook(opts: {
 
   const ps = wb.addWorksheet("Job Postings");
   ps.columns = [
+    { header: "Company", key: "company", width: 30 },
+    { header: "Website", key: "website", width: 32 },
+    { header: "Company Email", key: "companyEmail", width: 30 },
+    { header: "Company Phone", key: "companyPhone", width: 20 },
+    { header: "Contact Person", key: "contactPerson", width: 24 },
     { header: "Job Title", key: "title", width: 36 },
-    { header: "Job URL", key: "jobUrl", width: 42 },
-    { header: "Posting Date", key: "posted", width: 14 },
-    { header: "Job Source URL", key: "jobSourceUrl", width: 42 },
-    { header: "Source", key: "source", width: 20 },
     { header: "Role Category", key: "role", width: 18 },
-    { header: "Company Name", key: "company", width: 30 },
-    { header: "Company Website", key: "website", width: 32 },
-    { header: "Company LinkedIn", key: "companyLinkedin", width: 42 },
-    { header: "Industry", key: "industry", width: 24 },
-    { header: "Nature of Business", key: "nature", width: 30 },
-    { header: "Company Main Phone", key: "companyPhone", width: 20 },
-    { header: "Company City", key: "companyCity", width: 18 },
-    { header: "Company Region", key: "companyRegion", width: 18 },
-    { header: "Company Country", key: "companyCountry", width: 18 },
-    { header: "Employer Classification", key: "classification", width: 20 },
-    { header: "Job City", key: "city", width: 16 },
-    { header: "Job Region", key: "region", width: 16 },
-    { header: "Job Country", key: "country", width: 16 },
+    { header: "City", key: "city", width: 18 },
+    { header: "Region", key: "region", width: 18 },
+    { header: "Country", key: "country", width: 18 },
     { header: "Remote", key: "remote", width: 9 },
-    { header: "Employment Type", key: "type", width: 16 },
+    { header: "Type", key: "type", width: 16 },
     { header: "Salary Min", key: "salaryMin", width: 12 },
     { header: "Salary Max", key: "salaryMax", width: 12 },
     { header: "Currency", key: "currency", width: 10 },
+    { header: "Posted", key: "posted", width: 14 },
+    { header: "Source", key: "source", width: 20 },
     { header: "Also Seen On", key: "alsoSeen", width: 22 },
+    { header: "Apply URL", key: "jobUrl", width: 42 },
     { header: "Description", key: "snippet", width: 60 },
+    { header: "Company LinkedIn", key: "companyLinkedin", width: 42 },
+    { header: "Company Contact Title", key: "contactTitle", width: 24 },
+    { header: "Company Region", key: "companyRegion", width: 18 },
+    { header: "Company Country", key: "companyCountry", width: 18 },
+    { header: "Industry", key: "industry", width: 24 },
+    { header: "Nature of Business", key: "nature", width: 30 },
+    { header: "Employer Classification", key: "classification", width: 20 },
   ];
   for (const posting of opts.postings) {
     const row = ps.addRow({
@@ -144,7 +145,10 @@ export function buildWorkbook(opts: {
       role: ROLE_CATEGORY_LABELS[posting.roleCategory],
       company: posting.companyName,
       website: posting.companyWebsite ?? (posting.companyDomain ? `https://${posting.companyDomain}` : ""),
+      companyEmail: posting.companyEmail ?? "",
+      contactPerson: posting.companyContactName ?? "",
       companyLinkedin: companyLinkedInUrl({ name: posting.companyName, linkedinUrl: posting.companyLinkedinUrl }),
+      contactTitle: posting.companyContactTitle ?? "",
       industry: posting.companyIndustry ?? "",
       nature: exportNatureOfBusiness({
         name: posting.companyName,
@@ -154,7 +158,6 @@ export function buildWorkbook(opts: {
         descriptionSnippets: [posting.descriptionSnippet],
       }),
       companyPhone: posting.companyPhone ?? "",
-      companyCity: posting.companyCity ?? "",
       companyRegion: posting.companyRegion ?? "",
       companyCountry: posting.companyCountry ?? "",
       classification: posting.companyClassification.replace("_", " "),
@@ -170,7 +173,6 @@ export function buildWorkbook(opts: {
       snippet: posting.descriptionSnippet,
     });
     addHyperlink(row, "jobUrl", posting.applyUrl ?? posting.sourceUrl);
-    addHyperlink(row, "jobSourceUrl", posting.sourceUrl);
     addHyperlink(row, "website", posting.companyWebsite ?? (posting.companyDomain ? `https://${posting.companyDomain}` : null));
     addHyperlink(row, "companyLinkedin", companyLinkedInUrl({ name: posting.companyName, linkedinUrl: posting.companyLinkedinUrl }));
   }
@@ -180,25 +182,32 @@ export function buildWorkbook(opts: {
 
   const cs = wb.addWorksheet("Companies");
   cs.columns = [
-    { header: "Company Name", key: "name", width: 30 },
+    { header: "Company", key: "name", width: 30 },
     { header: "Website", key: "website", width: 32 },
-    { header: "Company LinkedIn", key: "companyLinkedin", width: 42 },
-    { header: "Industry", key: "industry", width: 24 },
-    { header: "Nature of Business", key: "nature", width: 30 },
-    { header: "Company Main Phone", key: "companyPhone", width: 20 },
+    { header: "Email", key: "email", width: 30 },
+    { header: "Email Source", key: "emailSource", width: 18 },
+    { header: "Phone", key: "companyPhone", width: 20 },
+    { header: "Contact Person", key: "contactPerson", width: 24 },
     { header: "City", key: "city", width: 18 },
     { header: "Region", key: "region", width: 18 },
     { header: "Country", key: "country", width: 18 },
+    { header: "Company LinkedIn", key: "companyLinkedin", width: 42 },
+    { header: "ATS", key: "ats", width: 20 },
     { header: "Employer Classification", key: "classification", width: 20 },
-    { header: "Employer Confidence", key: "employerConfidence", width: 18 },
+    { header: "Confidence", key: "employerConfidence", width: 18 },
     { header: "Open Postings", key: "count", width: 14 },
+    { header: "Contact Title", key: "contactTitle", width: 24 },
+    { header: "Industry", key: "industry", width: 24 },
+    { header: "Nature of Business", key: "nature", width: 30 },
   ];
   for (const company of opts.companies) {
     const row = cs.addRow({
       name: company.name,
       website: company.website ?? (company.domain ? `https://${company.domain}` : ""),
+      email: company.contactEmail ?? "",
+      emailSource: company.contactSource ?? "",
       companyLinkedin: company.linkedinUrl ?? "",
-      industry: company.industry ?? "",
+      contactPerson: company.contactName ?? "",
       nature: exportNatureOfBusiness(company),
       companyPhone: company.phone ?? "",
       city: company.city ?? "",
@@ -206,6 +215,9 @@ export function buildWorkbook(opts: {
       country: company.country ?? "",
       classification: company.classification.replace("_", " "),
       employerConfidence: company.classificationConfidence || "",
+      ats: company.atsType && company.atsType !== "none" ? company.atsType : "none",
+      contactTitle: company.contactTitle ?? "",
+      industry: company.industry ?? "",
       count: company.postingsCount,
     });
     addHyperlink(row, "website", company.website ?? (company.domain ? `https://${company.domain}` : null));
@@ -314,81 +326,24 @@ function csvField(value: string | number | null | undefined): string {
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-function executiveCsvHeaders(): string[] {
-  const headers: string[] = [];
-  for (let index = 1; index <= 3; index++) {
-    headers.push(
-      `Executive ${index} Name`, `Executive ${index} Title`, `Executive ${index} LinkedIn`,
-      `Executive ${index} Primary Email`, `Executive ${index} Primary Email Status`,
-      `Executive ${index} Alternate Email`, `Executive ${index} Alternate Email Status`,
-      `Executive ${index} Primary Phone`, `Executive ${index} Alternate Phone`,
-      `Executive ${index} Source URL`, `Executive ${index} Verification Status`,
-      `Executive ${index} Confidence Score`, `Executive ${index} Verification Date`,
-    );
-  }
-  return headers;
-}
-
-function executiveCsvValues(contacts: ExecutiveContactRow[]): Array<string | number> {
-  const values: Array<string | number> = [];
-  for (let index = 0; index < 3; index++) {
-    const contact = contacts[index];
-    values.push(
-      contact?.name ?? (index === 0 ? NO_VERIFIED_EXECUTIVE_CONTACT : ""),
-      contact?.title ?? "",
-      contact?.linkedinUrl ?? "",
-      contact ? exportEmail(contact.primaryEmail, contact.primaryEmailStatus) : "",
-      contact ? exportEmailStatus(contact.primaryEmail, contact.primaryEmailStatus) : "Unavailable",
-      contact ? exportEmail(contact.alternateEmail, contact.alternateEmailStatus) : "",
-      contact ? exportEmailStatus(contact.alternateEmail, contact.alternateEmailStatus) : "Unavailable",
-      contact?.primaryPhone ?? "",
-      contact?.alternatePhone ?? "",
-      contact?.sourceUrl ?? "",
-      contact ? emailVerificationLabel(contact.verificationStatus) : "Unavailable",
-      contact?.confidenceScore ?? "",
-      contact?.verifiedAt?.toISOString().slice(0, 10) ?? "",
-    );
-  }
-  return values;
-}
-
 export function buildCsv(postings: ExportPosting[]): string {
   const header = [
-    "Job Title", "Job URL", "Posting Date", "Job Source URL", "Source", "Role Category",
-    "Company Name", "Company Website", "Company LinkedIn", "Industry", "Nature of Business",
-    "Company Main Phone", "Company City", "Company Region", "Company Country", "Employer Classification", "Executive Contact Result",
-    ...executiveCsvHeaders(),
-    "Job City", "Job Region", "Job Country", "Remote", "Employment Type", "Salary Min", "Salary Max",
-    "Currency", "Description",
+    "Company", "Website", "Company Email", "Company Phone", "Contact Person", "Job Title", "Role Category",
+    "City", "Region", "Country", "Remote", "Type", "Salary Min", "Salary Max", "Currency", "Posted", "Source",
+    "Also Seen On", "Apply URL", "Description", "Company LinkedIn", "Company Contact Title", "Industry", "Nature of Business",
+    "Employer Classification",
   ];
   const lines = [header.map(csvField).join(",")];
   for (const posting of postings) {
-    const contacts = posting.executiveContacts.slice(0, 3);
     lines.push([
       posting.title,
-      posting.applyUrl ?? posting.sourceUrl ?? "",
-      posting.postedAt?.toISOString().slice(0, 10) ?? "",
-      posting.sourceUrl ?? "",
-      POSTING_SOURCE_LABELS[posting.source],
-      ROLE_CATEGORY_LABELS[posting.roleCategory],
       posting.companyName,
       posting.companyWebsite ?? (posting.companyDomain ? `https://${posting.companyDomain}` : ""),
-      companyLinkedInUrl({ name: posting.companyName, linkedinUrl: posting.companyLinkedinUrl }),
-      posting.companyIndustry ?? "",
-      exportNatureOfBusiness({
-        name: posting.companyName,
-        domain: posting.companyDomain,
-        industry: posting.companyIndustry,
-        natureOfBusiness: posting.companyNatureOfBusiness,
-        descriptionSnippets: [posting.descriptionSnippet],
-      }),
+      posting.companyEmail ?? "",
       posting.companyPhone ?? "",
-      posting.companyCity ?? "",
-      posting.companyRegion ?? "",
-      posting.companyCountry ?? "",
-      posting.companyClassification.replace("_", " "),
-      contacts.length > 0 ? `${contacts.length} senior decision-maker${contacts.length === 1 ? "" : "s"}` : NO_VERIFIED_EXECUTIVE_CONTACT,
-      ...executiveCsvValues(contacts),
+      posting.companyContactName ?? "",
+      posting.title,
+      ROLE_CATEGORY_LABELS[posting.roleCategory],
       posting.city ?? "",
       posting.region ?? "",
       posting.country ?? "",
@@ -397,7 +352,16 @@ export function buildCsv(postings: ExportPosting[]): string {
       posting.salaryMin ?? "",
       posting.salaryMax ?? "",
       posting.salaryCurrency ?? "",
+      posting.postedAt?.toISOString().slice(0, 10) ?? "",
+      POSTING_SOURCE_LABELS[posting.source],
+      posting.alsoSeenOn.map((source) => POSTING_SOURCE_LABELS[source]).join(", "),
+      posting.applyUrl ?? posting.sourceUrl ?? "",
       posting.descriptionSnippet,
+      companyLinkedInUrl({ name: posting.companyName, linkedinUrl: posting.companyLinkedinUrl }),
+      posting.companyContactTitle ?? "",
+      posting.companyIndustry ?? "",
+      exportNatureOfBusiness({ name: posting.companyName, domain: posting.companyDomain, industry: posting.companyIndustry, natureOfBusiness: posting.companyNatureOfBusiness, descriptionSnippets: [posting.descriptionSnippet] }),
+      posting.companyClassification.replace("_", " "),
     ].map(csvField).join(","));
   }
   return lines.join("\r\n");

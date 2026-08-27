@@ -95,29 +95,27 @@ describe("company profile export", () => {
       generatedAt: new Date("2026-08-12T00:00:00Z"),
     });
 
-    for (const sheetName of ["Job Postings", "Companies"]) {
-      const sheet = workbook.getWorksheet(sheetName)!;
-      const headers = sheet.getRow(1).values as unknown[];
-      expect(headers).toContain("Executive 1 Primary Email");
-      expect(headers).toContain("Executive 1 Primary Email Status");
-      expect(headers).toContain("Nature of Business");
-      expect(headers).toContain("Company Main Phone");
-      expect(headers).toContain("Executive 1 Verification Date");
-      const linkedInColumn = sheet.columns.findIndex((c) => c.key === "executive1Linkedin") + 1;
-      expect(sheet.getRow(2).getCell(linkedInColumn).value).toEqual({
-        text: "https://www.linkedin.com/in/asha-rao/",
-        hyperlink: "https://www.linkedin.com/in/asha-rao/",
-      });
-    }
+    const postingsSheet = workbook.getWorksheet("Job Postings")!;
+    const postingsHeaders = postingsSheet.getRow(1).values as unknown[];
+    expect(postingsHeaders).toEqual(expect.arrayContaining([
+      "Company", "Website", "Company Email", "Company Phone", "Contact Person", "Job Title",
+      "Role Category", "City", "Region", "Country", "Remote", "Type", "Posted", "Source", "Apply URL",
+    ]));
+    expect(postingsSheet.getRow(2).getCell(postingsSheet.columns.findIndex((c) => c.key === "contactPerson") + 1).value).toBe("Asha Rao");
 
     const companyHeaders = workbook.getWorksheet("Companies")!.getRow(1).values as unknown[];
-    expect(companyHeaders).toContain("Industry");
+    expect(companyHeaders).toEqual(expect.arrayContaining(["Company", "Website", "Email", "Email Source", "Phone", "Contact Person", "ATS"]));
     expect(companyHeaders).toContain("Company LinkedIn");
+
+    const executiveSheet = workbook.getWorksheet("Executive Contacts")!;
+    expect(executiveSheet.getRow(1).values).toEqual(expect.arrayContaining(["Executive Role", "Executive Name", "LinkedIn", "Primary Email"]));
+    expect(executiveSheet.getRow(2).getCell(executiveSheet.columns.findIndex((c) => c.key === "name") + 1).value).toBe("Asha Rao");
   });
 
   it("adds both fields to CSV exports", () => {
     const csv = buildCsv([posting]);
-    expect(csv.split("\r\n")[0]).toContain("Executive 1 Primary Email Status");
+    expect(csv.split("\r\n")[0]).toContain("Company Email");
+    expect(csv.split("\r\n")[0]).toContain("Contact Person");
     expect(csv).toContain("Manufacturing");
     expect(csv).not.toContain("Industrial automation equipment");
     expect(csv).toContain("https://www.linkedin.com/in/asha-rao/");
@@ -137,10 +135,10 @@ describe("company profile export", () => {
       runConfig: null,
       generatedAt: new Date("2026-08-12T00:00:00Z"),
     });
-    const postingsSheet = workbook.getWorksheet("Job Postings")!;
-    const resultColumn = postingsSheet.columns.findIndex((column) => column.key === "contactResult") + 1;
-    expect(postingsSheet.getRow(2).getCell(resultColumn).value).toBe("No verified executive contact found");
-    expect(buildCsv([noContactPosting])).toContain("No verified executive contact found");
+    const executiveSheet = workbook.getWorksheet("Executive Contacts")!;
+    const statusColumn = executiveSheet.columns.findIndex((column) => column.key === "lookupStatus") + 1;
+    expect(executiveSheet.getRow(2).getCell(statusColumn).value).toBe("Search for CEO");
+    expect(buildCsv([noContactPosting])).toContain("Acme Industries");
   });
 
   it("uses a timestamped filename so same-day exports cannot be confused", () => {

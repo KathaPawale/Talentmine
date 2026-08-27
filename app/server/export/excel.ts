@@ -281,6 +281,54 @@ export function buildWorkbook(opts: {
   zebra(cs);
   cs.autoFilter = { from: "A1", to: { row: 1, column: cs.columnCount } };
 
+  const executiveSheet = wb.addWorksheet("Executive Contacts");
+  executiveSheet.columns = [
+    { header: "Company Name", key: "companyName", width: 30 },
+    { header: "Region", key: "region", width: 18 },
+    { header: "Country", key: "country", width: 18 },
+    { header: "Executive Name", key: "name", width: 24 },
+    { header: "Title", key: "title", width: 24 },
+    { header: "LinkedIn", key: "linkedin", width: 42 },
+    { header: "Primary Email", key: "primaryEmail", width: 30 },
+    { header: "Primary Email Status", key: "primaryEmailStatus", width: 22 },
+    { header: "Alternate Email", key: "alternateEmail", width: 30 },
+    { header: "Alternate Email Status", key: "alternateEmailStatus", width: 22 },
+    { header: "Primary Phone", key: "primaryPhone", width: 20 },
+    { header: "Alternate Phone", key: "alternatePhone", width: 20 },
+    { header: "Source URL", key: "sourceUrl", width: 42 },
+    { header: "Verification Status", key: "verificationStatus", width: 22 },
+    { header: "Confidence Score", key: "confidence", width: 18 },
+    { header: "Verification Date", key: "verificationDate", width: 18 },
+  ];
+  const companiesById = new Map(opts.companies.map((company) => [company.id, company]));
+  for (const contact of opts.executiveContacts ?? []) {
+    const company = companiesById.get(contact.companyId);
+    if (!company) continue;
+    const row = executiveSheet.addRow({
+      companyName: company.name,
+      region: company.region ?? "",
+      country: company.country ?? "",
+      name: contact.name,
+      title: contact.title,
+      linkedin: contact.linkedinUrl ?? "",
+      primaryEmail: exportEmail(contact.primaryEmail, contact.primaryEmailStatus),
+      primaryEmailStatus: exportEmailStatus(contact.primaryEmail, contact.primaryEmailStatus),
+      alternateEmail: exportEmail(contact.alternateEmail, contact.alternateEmailStatus),
+      alternateEmailStatus: exportEmailStatus(contact.alternateEmail, contact.alternateEmailStatus),
+      primaryPhone: contact.primaryPhone ?? "",
+      alternatePhone: contact.alternatePhone ?? "",
+      sourceUrl: contact.sourceUrl ?? "",
+      verificationStatus: emailVerificationLabel(contact.verificationStatus),
+      confidence: contact.confidenceScore,
+      verificationDate: contact.verifiedAt?.toISOString().slice(0, 10) ?? "",
+    });
+    addHyperlink(row, "linkedin", contact.linkedinUrl);
+    addHyperlink(row, "sourceUrl", contact.sourceUrl);
+  }
+  styleHeader(executiveSheet);
+  zebra(executiveSheet);
+  executiveSheet.autoFilter = { from: "A1", to: { row: 1, column: executiveSheet.columnCount } };
+
   const ss = wb.addWorksheet("Summary");
   ss.columns = [{ width: 28 }, { width: 40 }];
   const addKv = (key: string, value: string | number) => {

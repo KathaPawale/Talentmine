@@ -96,35 +96,41 @@ export function ExecutiveContacts({ contacts }: { contacts: ExecutiveContactRow[
   }
 
   return (
-    <div className="space-y-3">
-      {contacts.slice(0, 3).map((contact) => (
-        <article key={contact.id} className="rounded-lg border border-border/70 bg-muted/20 p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="font-semibold text-foreground">{contact.name}</div>
-              <div className="text-xs text-muted-foreground">{contact.title}</div>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="text-xs font-semibold tabular-nums text-primary">{contact.confidenceScore}%</span>
-              <VerificationBadge status={contact.verificationStatus} />
-            </div>
-          </div>
-
-          <div className="mt-3 space-y-2">
-            <EmailLine label="Primary email" email={contact.primaryEmail} status={contact.primaryEmailStatus} />
-            <EmailLine label="Alternate email" email={contact.alternateEmail} status={contact.alternateEmailStatus} />
-            <PhoneLine label="Primary business phone" phone={contact.primaryPhone} />
-            <PhoneLine label="Alternate business phone" phone={contact.alternatePhone} />
-            <LinkLine label="Executive LinkedIn" url={contact.linkedinUrl} />
-            <LinkLine label="Contact source" url={contact.sourceUrl} />
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
-            <span>Verification date</span>
-            <span>{contact.verifiedAt ? contact.verifiedAt.toLocaleDateString() : "Unavailable"}</span>
-          </div>
-        </article>
-      ))}
+    <div className="overflow-x-auto rounded-lg border border-border/70">
+      <table className="w-full min-w-[920px] text-left text-xs">
+        <thead className="bg-muted/40 text-muted-foreground">
+          <tr>
+            <th className="px-3 py-2 font-medium">Executive</th>
+            <th className="px-3 py-2 font-medium">Title</th>
+            <th className="px-3 py-2 font-medium">Primary email</th>
+            <th className="px-3 py-2 font-medium">Alternate email</th>
+            <th className="px-3 py-2 font-medium">Primary phone</th>
+            <th className="px-3 py-2 font-medium">Alternate phone</th>
+            <th className="px-3 py-2 font-medium">LinkedIn</th>
+            <th className="px-3 py-2 font-medium">Status</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border/60">
+          {contacts.slice(0, 3).map((contact) => (
+            <tr key={contact.id} className="bg-muted/10 align-top">
+              <td className="px-3 py-3 font-semibold text-foreground">{contact.name}</td>
+              <td className="px-3 py-3 text-muted-foreground">{contact.title}</td>
+              <td className="px-3 py-3"><EmailLine label="" email={contact.primaryEmail} status={contact.primaryEmailStatus} /></td>
+              <td className="px-3 py-3"><EmailLine label="" email={contact.alternateEmail} status={contact.alternateEmailStatus} /></td>
+              <td className="px-3 py-3"><PhoneLine label="" phone={contact.primaryPhone} /></td>
+              <td className="px-3 py-3"><PhoneLine label="" phone={contact.alternatePhone} /></td>
+              <td className="px-3 py-3"><LinkLine label="" url={contact.linkedinUrl} /></td>
+              <td className="px-3 py-3">
+                <div className="flex flex-col items-start gap-1">
+                  <VerificationBadge status={contact.verificationStatus} />
+                  <span className="tabular-nums text-muted-foreground">{contact.confidenceScore}%</span>
+                  <span className="text-[11px] text-muted-foreground">{contact.verifiedAt ? contact.verifiedAt.toLocaleDateString() : "Unavailable"}</span>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

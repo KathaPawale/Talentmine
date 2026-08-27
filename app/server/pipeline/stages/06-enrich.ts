@@ -381,6 +381,7 @@ export const enrichStage: StageFn = async (ctx) => {
           .all()
           .flatMap((posting) => extractJobPosterNames(posting.description)),
       );
+          if (isExcludedJobPoster(target.contact.name, excludedNames)) continue;
       hunterLookupsRemaining--;
       const hit = await hunter.findPerson({
         domain: target.companyDomain!,

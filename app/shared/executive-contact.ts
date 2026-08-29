@@ -77,7 +77,7 @@ export function extractJobPosterNames(text: string | null | undefined): string[]
   const patterns = [
     /\b(?:posted\s+by|job\s+poster|recruiter|hiring\s+contact|recruitment\s+contact|talent\s+acquisition\s+contact|contact\s+person)\s*[:\-–—]\s*([A-Z][A-Za-z'-]*(?:\s+[A-Z][A-Za-z'-]*){1,3})\b/gi,
     /\b(?:please\s+contact|questions?\s+(?:to|for))\s+([A-Z][A-Za-z'-]*(?:\s+[A-Z][A-Za-z'-]*){1,3})\s+(?:at|on|via)\b/gi,
-    /\b(?:hr|human\s+resources|recruiter|hiring\s+manager)\s+(?:named|called)\s+([A-Z][A-Za-z'-]*(?:\s+[A-Z][A-Za-z'-]*){1,3})\b/gi,
+    /\b(?:hr|human\s+resources|recruiter|hiring\s+manager)\s+(?:named|called)\s+([A-Z][A-Za-z'-]*(?:\s+[A-Z][A-Za-z'-]*){1,2}?)(?=\s+(?:posted|is|was|at|from|via)\b|[.,;:]|$)/gi,
   ];
   for (const pattern of patterns) {
     for (const match of text.matchAll(pattern)) {

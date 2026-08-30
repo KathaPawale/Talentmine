@@ -9,5 +9,11 @@
       "maxDuration": 60,
       "includeFiles": "app/{seed/**,server/db/migrations/**}"
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }

@@ -14,10 +14,13 @@ const SEED_PATH = "seed/talentmine-seed.db";
  */
 function seedIfEmpty(target: string): void {
   if (fs.existsSync(target)) return;
-  const seed = path.resolve(process.cwd(), SEED_PATH);
-  if (!fs.existsSync(seed)) return;
+  const seed = [
+    path.resolve(process.cwd(), SEED_PATH),
+    path.resolve(process.cwd(), "app", SEED_PATH),
+  ].find((candidate) => fs.existsSync(candidate));
+  if (!seed) return;
   fs.copyFileSync(seed, target);
-  console.log(`[db] seeded ${target} from ${SEED_PATH}`);
+  console.log(`[db] seeded ${target} from ${seed}`);
 }
 
 // The whole codebase uses better-sqlite3's synchronous query API (190 call

@@ -72,6 +72,46 @@ function companyWebsite(company: { website?: string | null; domain?: string | nu
   return company.website ?? (company.domain ? `https://${company.domain}` : "");
 }
 
+function executiveList(
+  contacts: ExecutiveContactRow[],
+  value: (contact: ExecutiveContactRow) => string | null | undefined,
+): string {
+  return contacts
+    .map((contact) => {
+      const detail = value(contact)?.trim();
+      return detail ? `${contact.title}: ${detail}` : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
+function executiveNames(contacts: ExecutiveContactRow[]): string {
+  return executiveList(contacts, (contact) => contact.name);
+}
+
+function executiveLinkedins(contacts: ExecutiveContactRow[]): string {
+  return executiveList(contacts, (contact) => contact.linkedinUrl);
+}
+
+function executivePhones(contacts: ExecutiveContactRow[]): string {
+  return executiveList(
+    contacts,
+    (contact) => [contact.primaryPhone, contact.alternatePhone].filter(Boolean).join(" / "),
+  );
+}
+
+function contactPerson(
+  companyContactName: string | null | undefined,
+  contacts: ExecutiveContactRow[],
+  legacyExecutiveName?: string | null,
+): string {
+  return companyContactName ?? contacts[0]?.name ?? legacyExecutiveName ?? "";
+}
+
+function legacyExecutiveValue(title: string | null, value: string | null): string {
+  return value ? `${title ?? "Executive"}: ${value}` : "";
+}
+
 function dataNotes(contact: ExecutiveContactRow | undefined): string {
   if (!contact) return NO_VERIFIED_EXECUTIVE_CONTACT;
   const primaryEmail = exportEmail(contact.primaryEmail, contact.primaryEmailStatus);
@@ -153,6 +193,23 @@ function tintStatusCells(sheet: ExcelJS.Worksheet, keys: string[]): void {
             : COLORS.muted;
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
     }
+  }
+}
+
+function fitWrappedRows(sheet: ExcelJS.Worksheet, keys: string[], maxHeight = 96): void {
+  for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
+    const row = sheet.getRow(rowNumber);
+    let lines = 1;
+    for (const key of keys) {
+      const column = sheet.getColumn(key);
+      const text = String(row.getCell(key).value ?? "");
+      const width = Math.max(12, Number(column.width ?? 20));
+      const wrappedLines = text
+        .split("\n")
+        .reduce((count, part) => count + Math.max(1, Math.ceil(part.length / width)), 0);
+      lines = Math.max(lines, wrappedLines);
+    }
+    row.height = Math.min(maxHeight, Math.max(34, 12 + lines * 16));
   }
 }
 
@@ -261,114 +318,96 @@ export function buildWorkbook(opts: {
 
   const companies = workbook.addWorksheet("Companies");
   companies.columns = [
-    { header: "Company Name", key: "name", width: 28 },
+    { header: "Company", key: "name", width: 28 },
     { header: "Website", key: "website", width: 30 },
-    { header: "Company LinkedIn", key: "companyLinkedin", width: 32 },
-    { header: "Industry", key: "industry", width: 22 },
-    { header: "Nature of Business", key: "nature", width: 30 },
-    { header: "Company Main Phone", key: "companyPhone", width: 20 },
+    { header: "Email", key: "email", width: 28 },
+    { header: "Phone", key: "phone", width: 20 },
+    { header: "Contact Person", key: "contactPerson", width: 24 },
     { header: "City", key: "city", width: 18 },
     { header: "Region", key: "region", width: 18 },
     { header: "Country", key: "country", width: 16 },
-    { header: "Employer Classification", key: "classification", width: 20 },
-    { header: "Employer Confidence", key: "employerConfidence", width: 18 },
-    { header: "Executive Contacts Found", key: "executiveCount", width: 20 },
-    { header: "Executive Contact Result", key: "contactResult", width: 34 },
+    { header: "ATS", key: "ats", width: 18 },
+    { header: "Classification", key: "classification", width: 20 },
     { header: "Open Postings", key: "count", width: 14 },
   ];
   for (const company of opts.companies) {
-    const contacts = contactsByCompany.get(company.id) ?? [];
+    const contacts = [...(contactsByCompany.get(company.id) ?? [])].sort((a, b) => a.rank - b.rank).slice(0, 3);
     const row = companies.addRow({
       name: company.name,
       website: companyWebsite(company),
-      companyLinkedin: company.linkedinUrl ?? "",
-      industry: company.industry ?? "",
-      nature: exportNatureOfBusiness(company),
-      companyPhone: company.phone ?? "",
+      email: company.contactEmail ?? "",
+      phone: company.phone ?? "",
+      contactPerson: contactPerson(company.contactName, contacts, company.executiveName),
       city: company.city ?? "",
       region: company.region ?? "",
       country: company.country ?? "",
+      ats: company.atsType?.replaceAll("_", " ") ?? "",
       classification: company.classification.replaceAll("_", " "),
-      employerConfidence: company.classificationConfidence || "",
-      executiveCount: contacts.length,
-      contactResult: contactResult(contacts.length),
       count: company.postingsCount,
     });
     addHyperlink(row, "website", companyWebsite(company));
-    addHyperlink(row, "companyLinkedin", company.linkedinUrl);
   }
   styleSheet(companies);
-  tintStatusCells(companies, ["contactResult"]);
 
   const postings = workbook.addWorksheet("Job Postings");
   postings.columns = [
-    { header: "Job Title", key: "title", width: 34 },
     { header: "Company Name", key: "company", width: 28 },
-    { header: "Posting Date", key: "posted", width: 14 },
+    { header: "Website", key: "website", width: 30 },
+    { header: "Company Email", key: "companyEmail", width: 28 },
+    { header: "Company Phone Number", key: "companyPhone", width: 20 },
+    { header: "Contact Person", key: "contactPerson", width: 24 },
+    { header: "CEO, COO, Founder LinkedIn Link", key: "executiveLinkedins", width: 42 },
+    { header: "CEO, COO, Founder Names", key: "executiveNames", width: 32 },
+    { header: "CEO, COO, Founder Contact Phones", key: "executivePhones", width: 32 },
+    { header: "Job Title", key: "title", width: 34 },
     { header: "Role Category", key: "role", width: 18 },
-    { header: "Job City", key: "city", width: 16 },
-    { header: "Job Region", key: "region", width: 16 },
-    { header: "Job Country", key: "country", width: 16 },
+    { header: "City", key: "city", width: 16 },
+    { header: "Region", key: "region", width: 16 },
+    { header: "Country", key: "country", width: 16 },
     { header: "Remote", key: "remote", width: 9 },
-    { header: "Employment Type", key: "type", width: 16 },
-    { header: "Source", key: "source", width: 18 },
-    { header: "Job URL", key: "jobUrl", width: 34 },
-    { header: "Company Website", key: "website", width: 30 },
-    { header: "Company Main Phone", key: "companyPhone", width: 20 },
-    { header: "Company Region", key: "companyRegion", width: 18 },
-    { header: "Company Country", key: "companyCountry", width: 16 },
-    { header: "Industry", key: "industry", width: 22 },
-    { header: "Nature of Business", key: "nature", width: 30 },
-    { header: "Employer Classification", key: "classification", width: 20 },
-    { header: "Executive Contacts Found", key: "executiveCount", width: 20 },
-    { header: "Executive Contact Result", key: "contactResult", width: 34 },
+    { header: "Type", key: "type", width: 16 },
     { header: "Salary Min", key: "salaryMin", width: 12 },
     { header: "Salary Max", key: "salaryMax", width: 12 },
     { header: "Currency", key: "currency", width: 10 },
-    { header: "Also Seen On", key: "alsoSeen", width: 22 },
-    { header: "Description", key: "snippet", width: 52 },
+    { header: "Posted", key: "posted", width: 14 },
+    { header: "Source", key: "source", width: 18 },
+    { header: "Apply URL", key: "applyUrl", width: 38 },
+    { header: "Description", key: "description", width: 52 },
   ];
   for (const posting of opts.postings) {
-    const contacts = posting.executiveContacts.slice(0, 3);
+    const contacts = [...posting.executiveContacts].sort((a, b) => a.rank - b.rank).slice(0, 3);
     const website = companyWebsite({ website: posting.companyWebsite, domain: posting.companyDomain });
     const row = postings.addRow({
-      title: posting.title,
       company: posting.companyName,
-      posted: posting.postedAt?.toISOString().slice(0, 10) ?? "",
+      website,
+      companyEmail: posting.companyEmail ?? "",
+      companyPhone: posting.companyPhone ?? "",
+      contactPerson: contactPerson(posting.companyContactName, contacts, posting.companyExecutiveName),
+      executiveLinkedins: executiveLinkedins(contacts)
+        || legacyExecutiveValue(posting.companyExecutiveTitle, posting.companyExecutiveLinkedinUrl),
+      executiveNames: executiveNames(contacts)
+        || legacyExecutiveValue(posting.companyExecutiveTitle, posting.companyExecutiveName),
+      executivePhones: executivePhones(contacts),
+      title: posting.title,
       role: ROLE_CATEGORY_LABELS[posting.roleCategory],
-      city: posting.city ?? "",
-      region: posting.region ?? "",
-      country: posting.country ?? "",
+      city: posting.city ?? posting.companyCity ?? "",
+      region: posting.region ?? posting.companyRegion ?? "",
+      country: posting.country ?? posting.companyCountry ?? "",
       remote: posting.isRemote ? "Yes" : "No",
       type: posting.employmentType?.replaceAll("_", " ") ?? "",
-      source: POSTING_SOURCE_LABELS[posting.source],
-      jobUrl: posting.applyUrl ?? posting.sourceUrl ?? "",
-      website,
-      companyPhone: posting.companyPhone ?? "",
-      companyRegion: posting.companyRegion ?? "",
-      companyCountry: posting.companyCountry ?? "",
-      industry: posting.companyIndustry ?? "",
-      nature: exportNatureOfBusiness({
-        name: posting.companyName,
-        domain: posting.companyDomain,
-        industry: posting.companyIndustry,
-        natureOfBusiness: posting.companyNatureOfBusiness,
-        descriptionSnippets: [posting.descriptionSnippet],
-      }),
-      classification: posting.companyClassification.replaceAll("_", " "),
-      executiveCount: contacts.length,
-      contactResult: contactResult(contacts.length),
       salaryMin: posting.salaryMin ?? "",
       salaryMax: posting.salaryMax ?? "",
       currency: posting.salaryCurrency ?? "",
-      alsoSeen: posting.alsoSeenOn.map((source) => POSTING_SOURCE_LABELS[source]).join(", "),
-      snippet: posting.descriptionSnippet,
+      posted: posting.postedAt?.toISOString().slice(0, 10) ?? "",
+      source: POSTING_SOURCE_LABELS[posting.source],
+      applyUrl: posting.applyUrl ?? posting.sourceUrl ?? "",
+      description: posting.descriptionSnippet,
     });
-    addHyperlink(row, "jobUrl", posting.applyUrl ?? posting.sourceUrl);
+    addHyperlink(row, "applyUrl", posting.applyUrl ?? posting.sourceUrl);
     addHyperlink(row, "website", website);
   }
   styleSheet(postings, 2);
-  tintStatusCells(postings, ["contactResult"]);
+  fitWrappedRows(postings, ["executiveLinkedins", "executiveNames", "executivePhones", "description"]);
 
   const summary = workbook.addWorksheet("Summary");
   summary.columns = [{ width: 40 }, { width: 56 }];

@@ -49,7 +49,7 @@ export function ExportPage() {
           new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
           res.filename,
         );
-        toast.success(`Excel exported (${formatNumber(res.rows)} rows, 3 sheets)`);
+        toast.success(`Excel exported (${formatNumber(res.rows)} rows, 4 sheets)`);
       },
     }),
   );
@@ -160,7 +160,7 @@ export function ExportPage() {
           </button>
           <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
             <Download className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            Excel has 3 sheets: Job Postings, Companies, and Summary. Each result includes the company name and region,
+            Excel has 4 sheets: Executive Contacts, Companies, Job Postings, and Summary. The Job Postings and Companies sheets include the requested company, executive, location, role, salary, and application fields,
             plus up to 3 senior decision-makers (Founder, Owner, CEO, CFO, COO, President, Managing Director, Partner,
             Finance Director, or Financial Controller) with primary and alternate email, phone, LinkedIn, source, and
             verification details when available. HR, recruiter, hiring-manager, and job-poster contacts are excluded.

@@ -11,6 +11,89 @@ const PAGE_TIMEOUT_MS = 30_000;
 // ~10 postings per JSearch page; the free tier is 200 requests/month, so the
 // stage budgets pages tightly and this ceiling is a per-query backstop.
 const MAX_PAGES_PER_QUERY = 3;
+const ARBEITNOW_TIMEOUT_MS = 20_000;
+const ARBEITNOW_MAX_PAGES = 5;
+
+interface ArbeitnowJob {
+  slug?: string;
+  company_name?: string;
+  title?: string;
+  description?: string;
+  remote?: boolean;
+  url?: string;
+  job_types?: string[];
+  location?: string;
+  created_at?: number;
+}
+
+function stripHtml(value: string | undefined): string | null {
+  return value ? value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() : null;
+}
+
+function arbeitnowEndpoint(country: string): string | null {
+  const normalized = country.trim().toLowerCase();
+  if (normalized === "germany" || normalized === "deutschland") {
+    return "https://www.arbeitnow.com/api/job-board-api";
+  }
+  if (normalized === "united kingdom" || normalized === "uk") {
+    return "https://www.arbeitnow.co.uk/api/job-board-api";
+  }
+  return null;
+}
+
+async function searchArbeitnowFallback(opts: {
+  roleKeyword: string;
+  country: string;
+  remoteOnly: boolean;
+  postedWithinDays: number;
+  maxResults: number;
+  signal: AbortSignal;
+  onApiCall?: () => void;
+}): Promise<RawPosting[]> {
+  const endpoint = arbeitnowEndpoint(opts.country);
+  if (!endpoint) return [];
+  const out: RawPosting[] = [];
+  const keyword = opts.roleKeyword.trim().toLowerCase();
+  const cutoff = Date.now() - opts.postedWithinDays * 86_400_000;
+
+  for (let page = 1; page <= ARBEITNOW_MAX_PAGES && out.length < opts.maxResults; page++) {
+    opts.onApiCall?.();
+    const payload = await withTimeout(
+      (async () => {
+        const res = await fetch(`${endpoint}?page=${page}`, { signal: opts.signal });
+        if (!res.ok) throw new Error(`Arbeitnow HTTP ${res.status}`);
+        return (await res.json()) as { data?: ArbeitnowJob[] };
+      })(),
+      ARBEITNOW_TIMEOUT_MS,
+      "arbeitnow fallback page",
+    );
+    const jobs = payload.data ?? [];
+    for (const job of jobs) {
+      if (!job.title?.toLowerCase().includes(keyword) || !job.company_name?.trim()) continue;
+      if (opts.remoteOnly && !job.remote) continue;
+      const postedAt = job.created_at ? new Date(job.created_at * 1000) : null;
+      if (postedAt && postedAt.getTime() < cutoff) continue;
+      const types = (job.job_types ?? []).join(" ");
+      out.push({
+        title: job.title.trim(),
+        companyName: job.company_name.trim(),
+        description: stripHtml(job.description),
+        city: job.location?.trim() || null,
+        country: opts.country,
+        isRemote: job.remote ?? false,
+        employmentType: mapEmployment(types),
+        postedAt,
+        applyUrl: job.url ?? null,
+        sourceUrl: job.url ?? null,
+        source: "careers_page",
+        externalId: job.slug ?? null,
+      });
+      if (out.length >= opts.maxResults) break;
+    }
+    if (jobs.length === 0) break;
+  }
+  return out;
+}
 
 /** v2 accepts a country code (defaults to US) — map common names beyond Adzuna's list. */
 const EXTRA_COUNTRY_CODES: Record<string, string> = {
@@ -160,7 +243,8 @@ export class JSearchProvider implements JobSourceProvider {
     const pages = Math.min(MAX_PAGES_PER_QUERY, Math.max(1, Math.ceil(opts.maxResults / 10)));
     let cursor: string | undefined;
 
-    for (let page = 1; page <= pages; page++) {
+    try {
+      for (let page = 1; page <= pages; page++) {
       const data = await guardedCall("jsearch", 1, () => {
         opts.onApiCall?.();
         const params = new URLSearchParams({
@@ -197,8 +281,15 @@ export class JSearchProvider implements JobSourceProvider {
         if (mapped) out.push(mapped);
       }
       cursor = data.data?.cursor;
-      if (jobs.length === 0 || out.length >= opts.maxResults || !cursor) break;
+        if (jobs.length === 0 || out.length >= opts.maxResults || !cursor) break;
+      }
+      return out;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/HTTP 401|HTTP 403|not subscribed|timeout/i.test(message)) throw error;
+      const fallback = await searchArbeitnowFallback(opts);
+      if (fallback.length > 0) return fallback;
+      throw error;
     }
-    return out;
   }
 }

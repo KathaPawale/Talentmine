@@ -4,7 +4,9 @@ let appPromise;
 
 function configureVercelEnvironment() {
   process.env.NODE_ENV = "production";
-  process.env.AUTH_DISABLED ??= "false";
+  // Public guest mode is intentional for this deployment. The user explicitly
+  // selected access without Google OAuth credentials.
+  process.env.AUTH_DISABLED ??= "true";
   process.env.DATABASE_PATH ??= "/tmp/talentmine.db";
 
   const hostname = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;

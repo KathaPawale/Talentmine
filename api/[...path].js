@@ -4,8 +4,7 @@ let appPromise;
 
 function configureVercelEnvironment() {
   process.env.NODE_ENV = "production";
-  const googleAuthReady = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
-  process.env.AUTH_DISABLED ??= googleAuthReady ? "false" : "true";
+  process.env.AUTH_DISABLED ??= "false";
   process.env.DATABASE_PATH ??= "/tmp/talentmine.db";
 
   const hostname = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;

@@ -6,7 +6,7 @@
   "outputDirectory": "app/dist/client",
   "functions": {
     "api/[...path].js": {
-      "maxDuration": 60,
+      "maxDuration": 300,
       "includeFiles": "app/{dist/server/**,seed/**,server/db/migrations/**,node_modules/better-sqlite3/**,node_modules/bindings/**,node_modules/file-uri-to-path/**}"
     }
   },

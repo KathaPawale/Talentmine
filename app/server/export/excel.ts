@@ -50,6 +50,8 @@ export interface ExportPosting extends JobPostingRow {
   executiveContacts: ExecutiveContactRow[];
 }
 
+type ExecutiveRole = "CEO" | "CFO" | "COO" | "Founder";
+
 function exportNatureOfBusiness(company: Parameters<typeof natureOfBusinessLabel>[0]): string {
   return natureOfBusinessLabel(company);
 }
@@ -72,34 +74,6 @@ function companyWebsite(company: { website?: string | null; domain?: string | nu
   return company.website ?? (company.domain ? `https://${company.domain}` : "");
 }
 
-function executiveList(
-  contacts: ExecutiveContactRow[],
-  value: (contact: ExecutiveContactRow) => string | null | undefined,
-): string {
-  return contacts
-    .map((contact) => {
-      const detail = value(contact)?.trim();
-      return detail ? `${contact.title}: ${detail}` : "";
-    })
-    .filter(Boolean)
-    .join("\n");
-}
-
-function executiveNames(contacts: ExecutiveContactRow[]): string {
-  return executiveList(contacts, (contact) => contact.name);
-}
-
-function executiveLinkedins(contacts: ExecutiveContactRow[]): string {
-  return executiveList(contacts, (contact) => contact.linkedinUrl);
-}
-
-function executivePhones(contacts: ExecutiveContactRow[]): string {
-  return executiveList(
-    contacts,
-    (contact) => [contact.primaryPhone, contact.alternatePhone].filter(Boolean).join(" / "),
-  );
-}
-
 function contactPerson(
   companyContactName: string | null | undefined,
   contacts: ExecutiveContactRow[],
@@ -108,20 +82,35 @@ function contactPerson(
   return companyContactName ?? contacts[0]?.name ?? legacyExecutiveName ?? "";
 }
 
-function legacyExecutiveValue(title: string | null, value: string | null): string {
-  return value ? `${title ?? "Executive"}: ${value}` : "";
+function normalizeTitle(title: string | null | undefined): string {
+  return (title ?? "")
+    .toLowerCase()
+    .replace(/[.,/()_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function dataNotes(contact: ExecutiveContactRow | undefined): string {
-  if (!contact) return NO_VERIFIED_EXECUTIVE_CONTACT;
-  const primaryEmail = exportEmail(contact.primaryEmail, contact.primaryEmailStatus);
-  const alternateEmail = exportEmail(contact.alternateEmail, contact.alternateEmailStatus);
-  if (!primaryEmail && !alternateEmail && !contact.primaryPhone && !contact.alternatePhone) {
-    return "Executive identified; no verified public email or direct phone found";
-  }
-  if (!primaryEmail && !alternateEmail) return "Executive identified; no verified public email found";
-  if (!contact.primaryPhone && !contact.alternatePhone) return "Verified email available; no direct phone found";
-  return "Verified public contact details available";
+function matchesRole(title: string | null | undefined, role: ExecutiveRole): boolean {
+  const value = normalizeTitle(title);
+  if (!value) return false;
+  if (role === "CEO") return /\bceo\b/.test(value) || value.includes("chief executive officer");
+  if (role === "CFO") return /\bcfo\b/.test(value) || value.includes("chief financial officer");
+  if (role === "COO") return /\bcoo\b/.test(value) || value.includes("chief operating officer");
+  return value.includes("founder") || value.includes("co founder") || value.includes("cofounder");
+}
+
+function executiveForRole(contacts: ExecutiveContactRow[], role: ExecutiveRole): ExecutiveContactRow | undefined {
+  return contacts.find((contact) => matchesRole(contact.title, role));
+}
+
+function executiveEmail(contact: ExecutiveContactRow | undefined): string {
+  if (!contact) return "";
+  return exportEmail(contact.primaryEmail, contact.primaryEmailStatus)
+    || exportEmail(contact.alternateEmail, contact.alternateEmailStatus);
+}
+
+function executivePhone(contact: ExecutiveContactRow | undefined): string {
+  return contact?.primaryPhone ?? contact?.alternatePhone ?? "";
 }
 
 function columnLetter(column: number): string {
@@ -139,7 +128,7 @@ function styleSheet(sheet: ExcelJS.Worksheet, frozenColumns = 1): void {
   const header = sheet.getRow(1);
   header.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
   header.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.header } };
-  header.height = 34;
+  header.height = 30;
   header.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
   header.eachCell((cell) => {
     cell.border = {
@@ -160,12 +149,12 @@ function styleSheet(sheet: ExcelJS.Worksheet, frozenColumns = 1): void {
 
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return;
-    row.height = 34;
+    row.height = 24;
     if (rowNumber % 2 === 0) {
       row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.zebra } };
     }
     row.eachCell({ includeEmpty: true }, (cell) => {
-      cell.alignment = { vertical: "top", wrapText: true };
+      cell.alignment = { vertical: "middle", horizontal: "left", wrapText: false };
       cell.border = { bottom: { style: "hair", color: { argb: COLORS.border } } };
     });
   });
@@ -178,38 +167,19 @@ function addHyperlink(row: ExcelJS.Row, key: string, url: string | null | undefi
   cell.font = { color: { argb: COLORS.link }, underline: true };
 }
 
-function tintStatusCells(sheet: ExcelJS.Worksheet, keys: string[]): void {
-  for (const key of keys) {
-    for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
-      const cell = sheet.getRow(rowNumber).getCell(key);
-      const value = String(cell.value ?? "").toLowerCase();
-      if (!value) continue;
-      const color = value.includes("verified")
-        ? COLORS.verified
-        : value.includes("confirmed")
-          ? COLORS.confirmed
-          : value.includes("not found") || value.includes("unavailable")
-            ? COLORS.warning
-            : COLORS.muted;
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
-    }
-  }
+function addEmailLink(row: ExcelJS.Row, key: string, email: string | null | undefined): void {
+  if (!email) return;
+  const cell = row.getCell(key);
+  cell.value = { text: email, hyperlink: `mailto:${email}` };
+  cell.font = { color: { argb: COLORS.link }, underline: true };
 }
 
-function fitWrappedRows(sheet: ExcelJS.Worksheet, keys: string[], maxHeight = 96): void {
+function compactDescription(sheet: ExcelJS.Worksheet): void {
   for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
     const row = sheet.getRow(rowNumber);
-    let lines = 1;
-    for (const key of keys) {
-      const column = sheet.getColumn(key);
-      const text = String(row.getCell(key).value ?? "");
-      const width = Math.max(12, Number(column.width ?? 20));
-      const wrappedLines = text
-        .split("\n")
-        .reduce((count, part) => count + Math.max(1, Math.ceil(part.length / width)), 0);
-      lines = Math.max(lines, wrappedLines);
-    }
-    row.height = Math.min(maxHeight, Math.max(34, 12 + lines * 16));
+    row.height = 24;
+    const cell = row.getCell("description");
+    cell.alignment = { vertical: "middle", horizontal: "left", wrapText: false, shrinkToFit: false };
   }
 }
 
@@ -230,7 +200,7 @@ function contactValues(contact: ExecutiveContactRow | undefined): Record<string,
       verificationStatus: "",
       confidence: "",
       verificationDate: "",
-      notes: dataNotes(undefined),
+      notes: "Executive not found",
     };
   }
   return {
@@ -248,7 +218,7 @@ function contactValues(contact: ExecutiveContactRow | undefined): Record<string,
     verificationStatus: emailVerificationLabel(contact.verificationStatus),
     confidence: contact.confidenceScore || "",
     verificationDate: contact.verifiedAt?.toISOString().slice(0, 10) ?? "",
-    notes: dataNotes(contact),
+    notes: "Verified public executive record",
   };
 }
 
@@ -264,7 +234,7 @@ export function buildWorkbook(opts: {
   workbook.creator = "TalentMine";
   workbook.created = opts.generatedAt;
   workbook.modified = opts.generatedAt;
-  workbook.title = `${opts.runName} — executive contacts`;
+  workbook.title = `${opts.runName} — company and executive contacts`;
 
   const contactsByCompany = new Map<string, ExecutiveContactRow[]>();
   const allContacts = opts.executiveContacts ?? opts.postings.flatMap((posting) => posting.executiveContacts);
@@ -274,140 +244,122 @@ export function buildWorkbook(opts: {
     contactsByCompany.set(contact.companyId, contacts);
   }
 
-  const executives = workbook.addWorksheet("Executive Contacts");
-  executives.columns = [
-    { header: "Company Name", key: "company", width: 28 },
-    { header: "Region", key: "region", width: 18 },
-    { header: "Country", key: "country", width: 16 },
-    { header: "Executive Name", key: "executiveName", width: 24 },
-    { header: "Executive Title", key: "executiveTitle", width: 22 },
-    { header: "Executive LinkedIn", key: "executiveLinkedin", width: 32 },
-    { header: "Primary Email", key: "primaryEmail", width: 28 },
-    { header: "Primary Email Status", key: "primaryEmailStatus", width: 20 },
-    { header: "Alternate Email", key: "alternateEmail", width: 28 },
-    { header: "Alternate Email Status", key: "alternateEmailStatus", width: 20 },
-    { header: "Executive Primary Phone", key: "primaryPhone", width: 20 },
-    { header: "Executive Alternate Phone", key: "alternatePhone", width: 20 },
-    { header: "Company Main Phone", key: "companyPhone", width: 20 },
-    { header: "Source URL", key: "sourceUrl", width: 32 },
-    { header: "Verification Status", key: "verificationStatus", width: 20 },
-    { header: "Confidence Score", key: "confidence", width: 16 },
-    { header: "Verification Date", key: "verificationDate", width: 16 },
-    { header: "Contact Result", key: "contactResult", width: 34 },
-    { header: "Data Notes", key: "notes", width: 40 },
+  const postingByCompany = new Map<string, ExportPosting>();
+  for (const posting of opts.postings) {
+    if (!postingByCompany.has(posting.companyId)) postingByCompany.set(posting.companyId, posting);
+  }
+
+  const contactsSheet = workbook.addWorksheet("Company & Executive Contacts");
+  contactsSheet.columns = [
+    { header: "Company", key: "company", width: 22 },
+    { header: "Website", key: "website", width: 24 },
+    { header: "Contact Person", key: "contactPerson", width: 20 },
+    { header: "Company Email", key: "companyEmail", width: 26 },
+    { header: "Company Phone", key: "companyPhone", width: 18 },
+    { header: "CEO", key: "ceoName", width: 20 },
+    { header: "CEO LinkedIn", key: "ceoLinkedin", width: 24 },
+    { header: "CEO Email", key: "ceoEmail", width: 26 },
+    { header: "CEO Phone", key: "ceoPhone", width: 18 },
+    { header: "CFO", key: "cfoName", width: 20 },
+    { header: "CFO LinkedIn", key: "cfoLinkedin", width: 24 },
+    { header: "CFO Email", key: "cfoEmail", width: 26 },
+    { header: "CFO Phone", key: "cfoPhone", width: 18 },
+    { header: "COO", key: "cooName", width: 20 },
+    { header: "COO LinkedIn", key: "cooLinkedin", width: 24 },
+    { header: "COO Email", key: "cooEmail", width: 26 },
+    { header: "COO Phone", key: "cooPhone", width: 18 },
+    { header: "Founder", key: "founderName", width: 20 },
+    { header: "Founder LinkedIn", key: "founderLinkedin", width: 24 },
+    { header: "Founder Email", key: "founderEmail", width: 26 },
+    { header: "Founder Phone", key: "founderPhone", width: 18 },
+    { header: "Description", key: "description", width: 80 },
   ];
 
   for (const company of opts.companies) {
-    const contacts = [...(contactsByCompany.get(company.id) ?? [])].sort((a, b) => a.rank - b.rank).slice(0, 3);
-    const contactRows: Array<ExecutiveContactRow | undefined> = contacts.length > 0 ? contacts : [undefined];
-    for (const contact of contactRows) {
-      const row = executives.addRow({
-        company: company.name,
-        region: company.region ?? "",
-        country: company.country ?? "",
-        ...contactValues(contact),
-        companyPhone: company.phone ?? "",
-        contactResult: contactResult(contacts.length),
-      });
-      addHyperlink(row, "executiveLinkedin", contact?.linkedinUrl);
-      addHyperlink(row, "sourceUrl", contact?.sourceUrl);
-    }
+    const contacts = [...(contactsByCompany.get(company.id) ?? [])].sort((a, b) => a.rank - b.rank);
+    const posting = postingByCompany.get(company.id);
+    const ceo = executiveForRole(contacts, "CEO");
+    const cfo = executiveForRole(contacts, "CFO");
+    const coo = executiveForRole(contacts, "COO");
+    const founder = executiveForRole(contacts, "Founder");
+    const website = companyWebsite(company);
+    const companyEmail = company.contactEmail ?? posting?.companyEmail ?? "";
+    const description = posting?.descriptionSnippet ?? "";
+
+    const row = contactsSheet.addRow({
+      company: company.name,
+      website,
+      contactPerson: contactPerson(company.contactName, contacts, company.executiveName),
+      companyEmail,
+      companyPhone: company.phone ?? posting?.companyPhone ?? "",
+      ceoName: ceo?.name ?? "",
+      ceoLinkedin: ceo?.linkedinUrl ?? "",
+      ceoEmail: executiveEmail(ceo),
+      ceoPhone: executivePhone(ceo),
+      cfoName: cfo?.name ?? "",
+      cfoLinkedin: cfo?.linkedinUrl ?? "",
+      cfoEmail: executiveEmail(cfo),
+      cfoPhone: executivePhone(cfo),
+      cooName: coo?.name ?? "",
+      cooLinkedin: coo?.linkedinUrl ?? "",
+      cooEmail: executiveEmail(coo),
+      cooPhone: executivePhone(coo),
+      founderName: founder?.name ?? "",
+      founderLinkedin: founder?.linkedinUrl ?? "",
+      founderEmail: executiveEmail(founder),
+      founderPhone: executivePhone(founder),
+      description,
+    });
+
+    addHyperlink(row, "website", website);
+    addHyperlink(row, "ceoLinkedin", ceo?.linkedinUrl);
+    addHyperlink(row, "cfoLinkedin", cfo?.linkedinUrl);
+    addHyperlink(row, "cooLinkedin", coo?.linkedinUrl);
+    addHyperlink(row, "founderLinkedin", founder?.linkedinUrl);
+    addEmailLink(row, "companyEmail", companyEmail);
+    addEmailLink(row, "ceoEmail", executiveEmail(ceo));
+    addEmailLink(row, "cfoEmail", executiveEmail(cfo));
+    addEmailLink(row, "cooEmail", executiveEmail(coo));
+    addEmailLink(row, "founderEmail", executiveEmail(founder));
   }
-  styleSheet(executives, 2);
-  tintStatusCells(executives, ["primaryEmailStatus", "alternateEmailStatus", "verificationStatus", "contactResult"]);
+  styleSheet(contactsSheet, 2);
+  compactDescription(contactsSheet);
 
   const companies = workbook.addWorksheet("Companies");
   companies.columns = [
-    { header: "Company", key: "name", width: 28 },
-    { header: "Website", key: "website", width: 30 },
-    { header: "Email", key: "email", width: 28 },
-    { header: "Phone", key: "phone", width: 20 },
-    { header: "Contact Person", key: "contactPerson", width: 24 },
-    { header: "City", key: "city", width: 18 },
-    { header: "Region", key: "region", width: 18 },
-    { header: "Country", key: "country", width: 16 },
-    { header: "ATS", key: "ats", width: 18 },
-    { header: "Classification", key: "classification", width: 20 },
+    { header: "Company", key: "name", width: 22 },
+    { header: "Website", key: "website", width: 24 },
+    { header: "Company Email", key: "email", width: 26 },
+    { header: "Company Phone", key: "phone", width: 18 },
+    { header: "Contact Person", key: "contactPerson", width: 20 },
+    { header: "CEO", key: "ceo", width: 20 },
+    { header: "CFO", key: "cfo", width: 20 },
+    { header: "COO", key: "coo", width: 20 },
+    { header: "Founder", key: "founder", width: 20 },
     { header: "Open Postings", key: "count", width: 14 },
   ];
+
   for (const company of opts.companies) {
-    const contacts = [...(contactsByCompany.get(company.id) ?? [])].sort((a, b) => a.rank - b.rank).slice(0, 3);
+    const contacts = [...(contactsByCompany.get(company.id) ?? [])].sort((a, b) => a.rank - b.rank);
+    const posting = postingByCompany.get(company.id);
+    const website = companyWebsite(company);
+    const companyEmail = company.contactEmail ?? posting?.companyEmail ?? "";
     const row = companies.addRow({
       name: company.name,
-      website: companyWebsite(company),
-      email: company.contactEmail ?? "",
-      phone: company.phone ?? "",
+      website,
+      email: companyEmail,
+      phone: company.phone ?? posting?.companyPhone ?? "",
       contactPerson: contactPerson(company.contactName, contacts, company.executiveName),
-      city: company.city ?? "",
-      region: company.region ?? "",
-      country: company.country ?? "",
-      ats: company.atsType?.replaceAll("_", " ") ?? "",
-      classification: company.classification.replaceAll("_", " "),
+      ceo: executiveForRole(contacts, "CEO")?.name ?? "",
+      cfo: executiveForRole(contacts, "CFO")?.name ?? "",
+      coo: executiveForRole(contacts, "COO")?.name ?? "",
+      founder: executiveForRole(contacts, "Founder")?.name ?? "",
       count: company.postingsCount,
     });
-    addHyperlink(row, "website", companyWebsite(company));
+    addHyperlink(row, "website", website);
+    addEmailLink(row, "email", companyEmail);
   }
   styleSheet(companies);
-
-  const postings = workbook.addWorksheet("Job Postings");
-  postings.columns = [
-    { header: "Company Name", key: "company", width: 28 },
-    { header: "Website", key: "website", width: 30 },
-    { header: "Company Email", key: "companyEmail", width: 28 },
-    { header: "Company Phone Number", key: "companyPhone", width: 20 },
-    { header: "Contact Person", key: "contactPerson", width: 24 },
-    { header: "CEO, COO, Founder LinkedIn Link", key: "executiveLinkedins", width: 42 },
-    { header: "CEO, COO, Founder Names", key: "executiveNames", width: 32 },
-    { header: "CEO, COO, Founder Contact Phones", key: "executivePhones", width: 32 },
-    { header: "Job Title", key: "title", width: 34 },
-    { header: "Role Category", key: "role", width: 18 },
-    { header: "City", key: "city", width: 16 },
-    { header: "Region", key: "region", width: 16 },
-    { header: "Country", key: "country", width: 16 },
-    { header: "Remote", key: "remote", width: 9 },
-    { header: "Type", key: "type", width: 16 },
-    { header: "Salary Min", key: "salaryMin", width: 12 },
-    { header: "Salary Max", key: "salaryMax", width: 12 },
-    { header: "Currency", key: "currency", width: 10 },
-    { header: "Posted", key: "posted", width: 14 },
-    { header: "Source", key: "source", width: 18 },
-    { header: "Apply URL", key: "applyUrl", width: 38 },
-    { header: "Description", key: "description", width: 52 },
-  ];
-  for (const posting of opts.postings) {
-    const contacts = [...posting.executiveContacts].sort((a, b) => a.rank - b.rank).slice(0, 3);
-    const website = companyWebsite({ website: posting.companyWebsite, domain: posting.companyDomain });
-    const row = postings.addRow({
-      company: posting.companyName,
-      website,
-      companyEmail: posting.companyEmail ?? "",
-      companyPhone: posting.companyPhone ?? "",
-      contactPerson: contactPerson(posting.companyContactName, contacts, posting.companyExecutiveName),
-      executiveLinkedins: executiveLinkedins(contacts)
-        || legacyExecutiveValue(posting.companyExecutiveTitle, posting.companyExecutiveLinkedinUrl),
-      executiveNames: executiveNames(contacts)
-        || legacyExecutiveValue(posting.companyExecutiveTitle, posting.companyExecutiveName),
-      executivePhones: executivePhones(contacts),
-      title: posting.title,
-      role: ROLE_CATEGORY_LABELS[posting.roleCategory],
-      city: posting.city ?? posting.companyCity ?? "",
-      region: posting.region ?? posting.companyRegion ?? "",
-      country: posting.country ?? posting.companyCountry ?? "",
-      remote: posting.isRemote ? "Yes" : "No",
-      type: posting.employmentType?.replaceAll("_", " ") ?? "",
-      salaryMin: posting.salaryMin ?? "",
-      salaryMax: posting.salaryMax ?? "",
-      currency: posting.salaryCurrency ?? "",
-      posted: posting.postedAt?.toISOString().slice(0, 10) ?? "",
-      source: POSTING_SOURCE_LABELS[posting.source],
-      applyUrl: posting.applyUrl ?? posting.sourceUrl ?? "",
-      description: posting.descriptionSnippet,
-    });
-    addHyperlink(row, "applyUrl", posting.applyUrl ?? posting.sourceUrl);
-    addHyperlink(row, "website", website);
-  }
-  styleSheet(postings, 2);
-  fitWrappedRows(postings, ["executiveLinkedins", "executiveNames", "executivePhones", "description"]);
 
   const summary = workbook.addWorksheet("Summary");
   summary.columns = [{ width: 40 }, { width: 56 }];
@@ -434,7 +386,7 @@ export function buildWorkbook(opts: {
   );
   addKv(
     "How to read this workbook",
-    "Use Executive Contacts for C-suite outreach. Blank cells mean no verified public detail was found; TalentMine never inserts guessed email addresses.",
+    "Company & Executive Contacts contains the outreach-ready company, CEO, CFO, COO and Founder details. Blank email or phone cells mean no verified public detail was found; TalentMine does not insert guessed emails.",
   );
   summary.getColumn(2).alignment = { vertical: "top", wrapText: true };
   summary.getRow(summary.rowCount).height = 52;

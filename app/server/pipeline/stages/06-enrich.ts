@@ -19,7 +19,7 @@ import {
 } from "@shared/executive-contact";
 
 const MAX_PLACES_ENRICH = 30;
-const MAX_CONTACT_SCRAPE = 100;
+const MAX_CONTACT_SCRAPE = 200;
 const SCRAPE_CONCURRENCY = 5;
 
 /** Employers eligible for contact work: confirmed direct + unclassified. */
@@ -97,7 +97,7 @@ function upsertExecutiveContact(
     .from(schema.executiveContacts)
     .where(eq(schema.executiveContacts.companyId, company.id))
     .get()?.n ?? 0;
-  if (count >= 3) return false;
+  if (count >= 4) return false;
   ctx.db
     .insert(schema.executiveContacts)
     .values({
@@ -187,11 +187,13 @@ export const enrichStage: StageFn = async (ctx) => {
           });
           const hit = results[0];
           if (hit && namesRoughlyMatch(company.name, hit.name)) {
+            const resolvedWebsite = company.website ?? hit.website ?? null;
+            const resolvedDomain = normalizeDomain(resolvedWebsite);
             ctx.db
               .update(schema.companies)
               .set({
-                website: company.website ?? hit.website ?? null,
-                domain: normalizeDomain(hit.website),
+                website: resolvedWebsite,
+                domain: resolvedDomain,
                 address: company.address ?? hit.address ?? null,
                 city: company.city ?? hit.city ?? null,
                 region: company.region ?? hit.region ?? null,
@@ -207,7 +209,7 @@ export const enrichStage: StageFn = async (ctx) => {
               })
               .where(eq(schema.companies.id, company.id))
               .run();
-            if (hit.website) resolved++;
+            if (resolvedDomain) resolved++;
           }
         } catch (err) {
           if (err instanceof QuotaExceededError) {
@@ -220,8 +222,8 @@ export const enrichStage: StageFn = async (ctx) => {
       }
       ctx.emit("success", `Website resolution: ${resolved} of ${nameOnly.length} employers now have a site to scrape.`);
     }
-  } else if (!places) {
-    ctx.emit("warn", "Google Places key missing — cannot resolve websites for name-only employers.");
+  } else {
+    ctx.emit("warn", "Google Places provider unavailable — name-only employers will be enriched only when a website/domain is already known.");
   }
 
   // ---- (2) contact scrape (direct + unknown employers) ----
@@ -241,17 +243,9 @@ export const enrichStage: StageFn = async (ctx) => {
     .limit(MAX_CONTACT_SCRAPE)
     .all();
 
-  ctx.db
-    .update(schema.companies)
-    .set({ contactStatus: "skipped", updatedAt: new Date() })
-    .where(
-      and(
-        eq(schema.companies.jobId, ctx.jobId),
-        eq(schema.companies.contactStatus, "pending"),
-        isNull(schema.companies.domain),
-      ),
-    )
-    .run();
+  // Do not permanently discard unresolved companies. They may become enrichable
+  // on a later retry once a discovery/API provider is available.
+  let skippedWithoutDomain = 0;
 
   let scraped = 0;
   let emailsFound = 0;
@@ -265,64 +259,84 @@ export const enrichStage: StageFn = async (ctx) => {
       scrapeTargets.map((company) =>
         limit(async () => {
           ctx.checkCancelled();
-          const contact = await scrapeCompanyContacts({
-            fetcher: ctx.providers.fetcher,
-            domain: company.domain!,
-            website: company.website,
-            excludedNames: ctx.db
-              .select({ description: schema.jobPostings.descriptionSnippet })
-              .from(schema.jobPostings)
-              .where(eq(schema.jobPostings.companyId, company.id))
-              .all()
-              .flatMap((posting) => extractJobPosterNames(posting.description)),
-            signal: ctx.signal,
-          });
-          const rawNature = contact.natureOfBusiness ?? company.natureOfBusiness ?? company.industry;
-          const activity = natureOfBusinessLabel({ ...company, natureOfBusiness: rawNature });
-          const exclusion = classifyByHeuristic({
-            name: company.name,
-            domain: company.domain,
-            industry: company.industry,
-            natureOfBusiness: rawNature,
-          });
-          const shouldExclude = Boolean(exclusion && company.classificationMethod !== "manual");
-          const exclusionUpdate =
-            shouldExclude && exclusion
-              ? {
-                  classification: "staffing_agency" as const,
-                  classificationConfidence: exclusion.confidence,
-                  classificationMethod: "heuristic" as const,
-                  classificationReason: exclusion.reason,
-                }
-              : {};
-          ctx.db
-            .update(schema.companies)
-            .set({
-              contactEmail: contact.executives[0]?.primaryEmail ?? null,
-              contactName: contact.personName,
-              contactTitle: contact.personTitle,
-              natureOfBusiness: activity,
-              linkedinUrl: contact.companyLinkedinUrl ?? company.linkedinUrl,
-              executiveName: contact.executiveName,
-              executiveTitle: contact.executiveTitle,
-              executiveLinkedinUrl: contact.executiveLinkedinUrl,
-              contactSource: contact.executives[0]?.primaryEmail ? "scrape" : null,
-              phone: company.phone ?? contact.phone,
-              contactStatus:
-                contact.executives.length > 0 || contact.email !== null || contact.phone !== null ? "done" : "failed",
-              ...exclusionUpdate,
-              updatedAt: new Date(),
-            })
-            .where(eq(schema.companies.id, company.id))
-            .run();
-          if (!shouldExclude) {
-            contact.executives.forEach((executive, index) => {
-              upsertExecutiveContact(ctx, company, executive, index + 1);
+          try {
+            const contact = await scrapeCompanyContacts({
+              fetcher: ctx.providers.fetcher,
+              domain: company.domain!,
+              website: company.website,
+              excludedNames: ctx.db
+                .select({ description: schema.jobPostings.descriptionSnippet })
+                .from(schema.jobPostings)
+                .where(eq(schema.jobPostings.companyId, company.id))
+                .all()
+                .flatMap((posting) => extractJobPosterNames(posting.description)),
+              signal: ctx.signal,
             });
+            const rawNature = contact.natureOfBusiness ?? company.natureOfBusiness ?? company.industry;
+            const activity = natureOfBusinessLabel({ ...company, natureOfBusiness: rawNature });
+            const exclusion = classifyByHeuristic({
+              name: company.name,
+              domain: company.domain,
+              industry: company.industry,
+              natureOfBusiness: rawNature,
+            });
+            const shouldExclude = Boolean(exclusion && company.classificationMethod !== "manual");
+            const exclusionUpdate =
+              shouldExclude && exclusion
+                ? {
+                    classification: "staffing_agency" as const,
+                    classificationConfidence: exclusion.confidence,
+                    classificationMethod: "heuristic" as const,
+                    classificationReason: exclusion.reason,
+                  }
+                : {};
+            const bestCompanyEmail =
+              contact.executives[0]?.primaryEmail ??
+              contact.email ??
+              company.contactEmail ??
+              null;
+            const bestCompanyName = contact.personName ?? company.contactName ?? null;
+            const bestCompanyTitle = contact.personTitle ?? company.contactTitle ?? null;
+            const bestPhone = company.phone ?? contact.phone ?? null;
+            ctx.db
+              .update(schema.companies)
+              .set({
+                contactEmail: bestCompanyEmail,
+                contactName: bestCompanyName,
+                contactTitle: bestCompanyTitle,
+                natureOfBusiness: activity,
+                linkedinUrl: contact.companyLinkedinUrl ?? company.linkedinUrl,
+                executiveName: contact.executiveName ?? company.executiveName,
+                executiveTitle: contact.executiveTitle ?? company.executiveTitle,
+                executiveLinkedinUrl: contact.executiveLinkedinUrl ?? company.executiveLinkedinUrl,
+                contactSource:
+                  contact.executives[0]?.primaryEmail || contact.email
+                    ? "scrape"
+                    : company.contactSource,
+                phone: bestPhone,
+                contactStatus:
+                  contact.executives.length > 0 || contact.email !== null || contact.phone !== null ? "done" : "failed",
+                ...exclusionUpdate,
+                updatedAt: new Date(),
+              })
+              .where(eq(schema.companies.id, company.id))
+              .run();
+            if (!shouldExclude) {
+              contact.executives.forEach((executive, index) => {
+                upsertExecutiveContact(ctx, company, executive, index + 1);
+              });
+            }
+            scraped++;
+            emailsFound += contact.executives.filter((executive) => executive.primaryEmail).length;
+            personsFound += shouldExclude ? 0 : contact.executives.length;
+          } catch (err) {
+            ctx.emit("warn", `Contact scrape failed for ${company.name}: ${err instanceof Error ? err.message : err}`);
+            ctx.db
+              .update(schema.companies)
+              .set({ contactStatus: "failed", updatedAt: new Date() })
+              .where(eq(schema.companies.id, company.id))
+              .run();
           }
-          scraped++;
-          emailsFound += contact.executives.filter((executive) => executive.primaryEmail).length;
-          personsFound += shouldExclude ? 0 : contact.executives.length;
           done++;
           ctx.reportItems(done, scrapeTargets.length);
           ctx.heartbeat();
@@ -335,6 +349,25 @@ export const enrichStage: StageFn = async (ctx) => {
     );
   } else {
     ctx.emit("info", "No employer websites to scrape for contact details.");
+  }
+
+  // Keep unresolved name-only employers pending instead of marking them skipped.
+  const unresolvedPending = ctx.db
+    .select({ id: schema.companies.id })
+    .from(schema.companies)
+    .where(
+      and(
+        eq(schema.companies.jobId, ctx.jobId),
+        eq(schema.companies.contactStatus, "pending"),
+        inArray(schema.companies.classification, [...SCRAPE_CLASSIFICATIONS]),
+        isNull(schema.companies.domain),
+        hasPostings,
+      ),
+    )
+    .all();
+  skippedWithoutDomain = unresolvedPending.length;
+  if (skippedWithoutDomain > 0) {
+    ctx.emit("warn", `${skippedWithoutDomain} employers still need a website/domain before contact scraping can run; leaving them pending for a later enrichment retry.`);
   }
 
   // ---- (3) Identity-based email enrichment, then domain fallback ----
@@ -381,7 +414,7 @@ export const enrichStage: StageFn = async (ctx) => {
           .all()
           .flatMap((posting) => extractJobPosterNames(posting.description)),
       );
-          if (isExcludedJobPoster(target.contact.name, excludedNames)) continue;
+      if (isExcludedJobPoster(target.contact.name, excludedNames)) continue;
       hunterLookupsRemaining--;
       const hit = await hunter.findPerson({
         domain: target.companyDomain!,
@@ -448,7 +481,7 @@ export const enrichStage: StageFn = async (ctx) => {
           inArray(schema.companies.classification, [...SCRAPE_CLASSIFICATIONS]),
           isNotNull(schema.companies.domain),
           inArray(schema.companies.contactStatus, ["done", "failed"]),
-          sql`(select count(*) from executive_contacts ec where ec.company_id = ${schema.companies.id}) < 3`,
+          sql`(select count(*) from executive_contacts ec where ec.company_id = ${schema.companies.id}) < 4`,
           hasPostings,
         ),
       )
@@ -512,12 +545,12 @@ export const enrichStage: StageFn = async (ctx) => {
         ctx.db
           .update(schema.companies)
           .set({
-            contactEmail: top.primaryEmail,
-            contactName: top.name,
-            contactTitle: top.title,
-            executiveName: top.name,
-            executiveTitle: top.title,
-            executiveLinkedinUrl: top.linkedinUrl,
+            contactEmail: top.primaryEmail ?? company.contactEmail,
+            contactName: top.name ?? company.contactName,
+            contactTitle: top.title ?? company.contactTitle,
+            executiveName: top.name ?? company.executiveName,
+            executiveTitle: top.title ?? company.executiveTitle,
+            executiveLinkedinUrl: top.linkedinUrl ?? company.executiveLinkedinUrl,
             contactSource: top.primaryEmail ? "hunter" : company.contactSource,
             contactStatus: "done",
             updatedAt: new Date(),
@@ -569,6 +602,8 @@ export const enrichStage: StageFn = async (ctx) => {
         ctx.db
           .update(schema.companies)
           .set({
+            website: company.website ?? hit.website ?? null,
+            domain: company.domain ?? normalizeDomain(company.website ?? hit.website),
             address: company.address ?? hit.address ?? null,
             city: company.city ?? hit.city ?? null,
             region: company.region ?? hit.region ?? null,

@@ -24,11 +24,11 @@ export function RunsPage() {
   return (
     <div>
       <PageHeader
-        title="Mining Runs"
-        description="Create and monitor talent-demand mining pipelines"
+        title="Previous Searches"
+        description="All previous and current TalentMine searches are kept here, newest first"
         actions={
           <Link href="/runs/new" className={primaryBtn}>
-            <Plus className="h-4 w-4" /> New Run
+            <Plus className="h-4 w-4" /> New Search
           </Link>
         }
       />
@@ -41,11 +41,11 @@ export function RunsPage() {
       ) : !runs || runs.length === 0 ? (
         <EmptyState
           icon={Radar}
-          title="No mining runs yet"
-          description="Create your first run to start mining job postings from boards and company career sites."
+          title="No searches yet"
+          description="Create your first search to start mining job postings from boards and company career sites."
           action={
             <Link href="/runs/new" className={primaryBtn}>
-              <Plus className="h-4 w-4" /> New Run
+              <Plus className="h-4 w-4" /> New Search
             </Link>
           }
         />

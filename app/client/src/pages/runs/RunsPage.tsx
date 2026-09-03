@@ -1,6 +1,8 @@
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Radar } from "lucide-react";
+import type { JobRow } from "@server/db/schema";
 import { useTRPC } from "@/lib/trpc";
 import { isTerminalJobStatus } from "@/lib/stages";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -9,9 +11,46 @@ import { RunCard } from "./RunCard";
 
 const primaryBtn =
   "inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90";
+const RUN_HISTORY_KEY = "talentmine.previous-searches.v1";
+
+type CachedRun = Omit<JobRow, "createdAt" | "startedAt" | "finishedAt"> & {
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+};
+
+function cacheRun(run: JobRow): CachedRun {
+  return {
+    ...run,
+    createdAt: run.createdAt.toISOString(),
+    startedAt: run.startedAt?.toISOString() ?? null,
+    finishedAt: run.finishedAt?.toISOString() ?? null,
+  };
+}
+
+function restoreRun(run: CachedRun): JobRow {
+  return {
+    ...run,
+    createdAt: new Date(run.createdAt),
+    startedAt: run.startedAt ? new Date(run.startedAt) : null,
+    finishedAt: run.finishedAt ? new Date(run.finishedAt) : null,
+  } as JobRow;
+}
+
+function loadCachedRuns(): JobRow[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const value = window.localStorage.getItem(RUN_HISTORY_KEY);
+    if (!value) return [];
+    return (JSON.parse(value) as CachedRun[]).map(restoreRun);
+  } catch {
+    return [];
+  }
+}
 
 export function RunsPage() {
   const trpc = useTRPC();
+  const [cachedRuns, setCachedRuns] = useState<JobRow[]>(() => loadCachedRuns());
   const { data: runs, isLoading } = useQuery(
     trpc.runs.list.queryOptions(undefined, {
       staleTime: 0,
@@ -20,6 +59,27 @@ export function RunsPage() {
       refetchIntervalInBackground: true,
     }),
   );
+
+  useEffect(() => {
+    if (!runs) return;
+    const merged = new Map<string, JobRow>();
+    for (const run of cachedRuns) merged.set(run.id, run);
+    for (const run of runs) merged.set(run.id, run);
+    const next = [...merged.values()].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    setCachedRuns(next);
+    try {
+      window.localStorage.setItem(RUN_HISTORY_KEY, JSON.stringify(next.map(cacheRun)));
+    } catch {
+      // Browser storage may be unavailable; the server list still works normally.
+    }
+  }, [runs]);
+
+  const visibleRuns = useMemo(() => {
+    const merged = new Map<string, JobRow>();
+    for (const run of cachedRuns) merged.set(run.id, run);
+    for (const run of runs ?? []) merged.set(run.id, run);
+    return [...merged.values()].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }, [cachedRuns, runs]);
 
   return (
     <div>
@@ -32,13 +92,13 @@ export function RunsPage() {
           </Link>
         }
       />
-      {isLoading ? (
+      {isLoading && visibleRuns.length === 0 ? (
         <div className="space-y-4">
           {[0, 1].map((i) => (
             <div key={i} className="h-44 animate-pulse rounded-xl border border-border bg-card" />
           ))}
         </div>
-      ) : !runs || runs.length === 0 ? (
+      ) : visibleRuns.length === 0 ? (
         <EmptyState
           icon={Radar}
           title="No searches yet"
@@ -51,7 +111,7 @@ export function RunsPage() {
         />
       ) : (
         <div className="space-y-4">
-          {runs.map((run) => (
+          {visibleRuns.map((run) => (
             <RunCard key={run.id} run={run} />
           ))}
         </div>

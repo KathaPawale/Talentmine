@@ -199,6 +199,7 @@ export const SETTING_DEFAULTS = {
   "enrich.resolve_websites_per_run": 60,
   // Hunter free tier is ~25 domain searches/month — keep headroom.
   "quota.hunter_monthly_cap": 20,
+  "quota.apollo_monthly_cap": 20,
   /** Hunter fallback lookups per run (spreads the tiny monthly quota). */
   "enrich.hunter_per_run": 10,
   "pipeline.pool_size": 1,
@@ -206,7 +207,7 @@ export const SETTING_DEFAULTS = {
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
 
 // ---------- Quota ----------
-export const QUOTA_PROVIDERS = ["jsearch", "adzuna", "google_places", "groq", "hunter"] as const;
+export const QUOTA_PROVIDERS = ["jsearch", "adzuna", "google_places", "groq", "hunter", "apollo"] as const;
 export type QuotaProvider = (typeof QUOTA_PROVIDERS)[number];
 
 // ---------- Adzuna country support ----------

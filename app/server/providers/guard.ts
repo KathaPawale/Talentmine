@@ -15,7 +15,7 @@ export class QuotaExceededError extends Error {
   }
 }
 
-const MONTHLY_PROVIDERS: ReadonlySet<QuotaProvider> = new Set(["google_places", "jsearch", "hunter"]);
+const MONTHLY_PROVIDERS: ReadonlySet<QuotaProvider> = new Set(["google_places", "jsearch", "hunter", "apollo"]);
 
 /** 'YYYY-MM' for monthly-capped providers, 'YYYY-MM-DD' for daily (UTC). */
 export function periodKeyFor(provider: QuotaProvider, now: Date = new Date()): string {
@@ -35,6 +35,8 @@ export function capFor(provider: QuotaProvider): number {
       return getSetting("quota.adzuna_daily_cap") as number;
     case "hunter":
       return getSetting("quota.hunter_monthly_cap") as number;
+    case "apollo":
+      return getSetting("quota.apollo_monthly_cap") as number;
   }
 }
 

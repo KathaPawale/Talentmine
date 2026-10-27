@@ -6,6 +6,7 @@ import { GooglePlacesProvider } from "./google-places";
 import { GroqLlm } from "./groq";
 import { GeminiLlm, FailoverLlm } from "./gemini";
 import { HunterProvider } from "./hunter";
+import { ApolloProvider } from "./apollo";
 import { HttpAtsProvider } from "./ats";
 import { HttpFetcher } from "../crawl/fetcher";
 import { FakeJobSource, FakeDiscovery, FakeAts, FakeFetcher, FakeLlm } from "./fake";
@@ -36,6 +37,6 @@ export function buildProviders(): ProviderRegistry {
     llm,
     fetcher: simulate ? new FakeFetcher() : new HttpFetcher(),
     // available=false without a key — the enrich stage just skips the fallback
-    contactLookup: new HunterProvider(),
+    contactLookup: config.features.apollo ? new ApolloProvider() : new HunterProvider(),
   };
 }

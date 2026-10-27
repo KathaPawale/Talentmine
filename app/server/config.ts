@@ -35,6 +35,7 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().default(""),
   // Hunter.io exact-person email finder (LinkedIn handle first) + domain fallback.
   HUNTER_API_KEY: z.string().default(""),
+  APOLLO_API_KEY: z.string().default(""),
 
   // JSearch (Google for Jobs aggregator) via RapidAPI.
   RAPIDAPI_KEY: z.string().default(""),
@@ -91,6 +92,7 @@ export const config = {
     jsearch: env.RAPIDAPI_KEY !== "",
     adzuna: env.ADZUNA_APP_ID !== "" && env.ADZUNA_APP_KEY !== "",
     hunter: env.HUNTER_API_KEY !== "",
+    apollo: env.APOLLO_API_KEY !== "",
     devAuthBypass: env.DEV_AUTH_BYPASS && env.NODE_ENV !== "production",
     authDisabled: env.AUTH_DISABLED,
   },

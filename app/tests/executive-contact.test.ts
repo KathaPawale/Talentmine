@@ -1,8 +1,32 @@
 import { describe, expect, it } from "vitest";
+import { pickApolloPerson } from "@server/providers/apollo";
 import { linkedinHandle, pickHunterExecutives, pickHunterPerson } from "@server/providers/hunter";
 import { isExcludedJobPoster } from "@shared/executive-contact";
 
 describe("executive contact verification", () => {
+  it("maps only verified Apollo people to executive contacts", () => {
+    const contact = pickApolloPerson(
+      {
+        first_name: "Asha",
+        last_name: "Rao",
+        title: "Chief Executive Officer",
+        email: "ASHA.RAO@ACME.COM",
+        email_status: "verified",
+        linkedin_url: "https://www.linkedin.com/in/asha-rao/",
+        phone_numbers: [{ sanitized_number: "+15551234567" }],
+      },
+      { name: "Asha Rao", title: "CEO", linkedinUrl: null },
+    );
+
+    expect(contact).toEqual(expect.objectContaining({
+      email: "asha.rao@acme.com",
+      emailStatus: "verified",
+      linkedinUrl: "https://www.linkedin.com/in/asha-rao/",
+      phone: "+15551234567",
+    }));
+    expect(pickApolloPerson({ email: "asha@acme.com", email_status: "guessed" }, { name: "Asha Rao", title: "CEO", linkedinUrl: null })).toBeNull();
+  });
+
   it("uses an exact LinkedIn handle to identify the executive", () => {
     expect(linkedinHandle("https://www.linkedin.com/in/riya-kapoor/?trk=company")).toBe("riya-kapoor");
     expect(linkedinHandle("https://www.linkedin.com/company/acme/")).toBeNull();

@@ -160,8 +160,8 @@ export const companies = sqliteTable(
     executiveName: text("executive_name"),
     executiveTitle: text("executive_title"),
     executiveLinkedinUrl: text("executive_linkedin_url"),
-    /** Where the contact email came from: our own scrape or a Hunter lookup. */
-    contactSource: text("contact_source").$type<"scrape" | "hunter" | null>(),
+    /** Where the contact email came from: our own scrape or an email provider lookup. */
+    contactSource: text("contact_source").$type<"scrape" | "hunter" | "apollo" | null>(),
     /** Enrich-stage checkpoint for the contact scrape. */
     contactStatus: text("contact_status")
       .$type<"pending" | "done" | "failed" | "skipped">()

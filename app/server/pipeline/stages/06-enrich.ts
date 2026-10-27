@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import pLimit from "p-limit";
 import { schema } from "../../db/client";
+import { config } from "../../config";
 import type { StageFn } from "../types";
 import { QuotaExceededError } from "../../providers/guard";
 import { getSetting } from "../../lib/settings";
@@ -371,8 +372,9 @@ export const enrichStage: StageFn = async (ctx) => {
   }
 
   // ---- (3) Identity-based email enrichment, then domain fallback ----
-  const hunter = ctx.providers.contactLookup;
-  if (hunter.available) {
+  const contactLookup = ctx.providers.contactLookup;
+  const contactProviderName = config.features.apollo ? "apollo" : "hunter";
+  if (contactLookup.available) {
     const hunterCap = getSetting("enrich.hunter_per_run") as number;
     let hunterLookupsRemaining = hunterCap;
     let linkedInEmailsFound = 0;
@@ -416,7 +418,7 @@ export const enrichStage: StageFn = async (ctx) => {
       );
       if (isExcludedJobPoster(target.contact.name, excludedNames)) continue;
       hunterLookupsRemaining--;
-      const hit = await hunter.findPerson({
+      const hit = await contactLookup.findPerson({
         domain: target.companyDomain!,
         name: target.contact.name,
         title: target.contact.title,
@@ -455,7 +457,7 @@ export const enrichStage: StageFn = async (ctx) => {
             executiveName: target.contact.name,
             executiveTitle: hit.position ?? target.contact.title,
             executiveLinkedinUrl: hit.linkedinUrl ?? target.contact.linkedinUrl,
-            contactSource: "hunter",
+            contactSource: contactProviderName,
             contactStatus: "done",
             updatedAt: new Date(),
           })
@@ -502,7 +504,7 @@ export const enrichStage: StageFn = async (ctx) => {
           .flatMap((posting) => extractJobPosterNames(posting.description)),
       );
       hunterLookupsRemaining--;
-      const hits = await hunter.domainSearch(company.domain!, ctx.signal);
+      const hits = await contactLookup.domainSearch(company.domain!, ctx.signal);
       const existingCount = ctx.db
         .select({ n: sql<number>`count(*)` })
         .from(schema.executiveContacts)
@@ -524,7 +526,7 @@ export const enrichStage: StageFn = async (ctx) => {
             alternateEmailStatus: "unavailable",
             primaryPhone: hit.phone,
             alternatePhone: null,
-            sourceUrl: hit.sourceUrl ?? `https://hunter.io/search/${encodeURIComponent(company.domain!)}`,
+            sourceUrl: hit.sourceUrl ?? (contactProviderName === "apollo" ? null : `https://hunter.io/search/${encodeURIComponent(company.domain!)}`),
             verificationStatus: hit.emailStatus,
             confidenceScore: hit.confidence ?? (hit.emailStatus === "verified" ? 90 : 60),
             verifiedAt: hit.verifiedAt ?? new Date(),
@@ -551,7 +553,7 @@ export const enrichStage: StageFn = async (ctx) => {
             executiveName: top.name ?? company.executiveName,
             executiveTitle: top.title ?? company.executiveTitle,
             executiveLinkedinUrl: top.linkedinUrl ?? company.executiveLinkedinUrl,
-            contactSource: top.primaryEmail ? "hunter" : company.contactSource,
+            contactSource: top.primaryEmail ? contactProviderName : company.contactSource,
             contactStatus: "done",
             updatedAt: new Date(),
           })
@@ -561,7 +563,7 @@ export const enrichStage: StageFn = async (ctx) => {
       ctx.heartbeat();
     }
     if (incomplete.length > 0) {
-      ctx.emit("success", `Hunter fallback: ${hunterHits} additional named executive contacts found for ${incomplete.length} employers.`);
+      ctx.emit("success", `${contactProviderName} fallback: ${hunterHits} additional named executive contacts found for ${incomplete.length} employers.`);
     }
   }
 
